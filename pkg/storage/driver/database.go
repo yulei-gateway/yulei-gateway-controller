@@ -128,3 +128,49 @@ func (c *DatabaseStorage) getEnvoyConfig(nodeID string) (*storage.EnvoyConfig, e
 func (c *DatabaseStorage) getChangeMsgChan() chan string {
 	return c.NoticeChan
 }
+
+// Cluster the end point clusters
+type Cluster struct {
+	gorm.Model
+	Name      string     `json:"name" gorm:"index"`
+	Endpoints []Endpoint `json:"endpoints"  gorm:"many2many:cluster_endpoints;"`
+	Routes    []Route    `json:"routes"  gorm:"many2many:route_clusters;"`
+}
+
+type Endpoint struct {
+	gorm.Model
+	Address  string    `json:"address" gorm:"uniqueIndex:idx_endpoint,priority:2"`
+	Port     int       `json:"port" gorm:"uniqueIndex:idx_endpoint,priority:3"`
+	Clusters []Cluster `json:"clusters" gorm:"many2many:cluster_endpoints;"`
+}
+
+type Node struct {
+	gorm.Model
+	EnvoyNodeID string     `json:"nodeID"`
+	Listeners   []Listener `json:"listeners" gorm:"foreignKey:NodeID"`
+}
+
+type Listener struct {
+	gorm.Model
+	Name    string  `yaml:"name"`
+	Address string  `yaml:"address"`
+	Port    uint32  `yaml:"port"`
+	Routes  []Route `yaml:"routes" json:"routes" gorm:"foreignKey:ListenerID;"`
+	NodeID  int     `json:"nodeID" gorm:"index:idx_node_id;"`
+}
+
+type Route struct {
+	gorm.Model
+	Name       string        `yaml:"name"`
+	Prefix     string        `yaml:"prefix"`
+	Headers    []HeaderRoute `json:"headers" gorm:"foreignKey:RouteID"`
+	Clusters   []Cluster     `json:"clusters" gorm:"many2many:route_clusters;"`
+	ListenerID int           `json:"listenerID"  gorm:"index:idx_listener_id;"`
+}
+
+type HeaderRoute struct {
+	gorm.Model
+	HeaderName  string `json:"headerName"`
+	HeaderValue string `json:"headerValue"`
+	RouteID     int
+}
