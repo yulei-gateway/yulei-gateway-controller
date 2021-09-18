@@ -11,10 +11,7 @@ require (
 	gorm.io/driver/postgres v1.1.1
 	gorm.io/driver/sqlite v1.1.5
 	gorm.io/driver/sqlserver v1.0.9
-	gorm.io/gorm v1.21.15
-)
-
-require (
+	gorm.io/gorm v1.21.15 
 	github.com/ClickHouse/clickhouse-go v1.4.5 // indirect
 	github.com/cloudflare/golz4 v0.0.0-20150217214814-ef862a3cdc58 // indirect
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
