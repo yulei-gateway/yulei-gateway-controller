@@ -3,6 +3,7 @@ package driver
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
@@ -13,6 +14,9 @@ import (
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 )
+
+var noticeChan chan string
+var once = &sync.Once{}
 
 type DatabaseStorage struct {
 	DatabaseName string
@@ -27,6 +31,12 @@ type DatabaseStorage struct {
 }
 
 func NewDatabaseStorage(dbType, host, username, password, dbName string, port int) *DatabaseStorage {
+	once.Do(
+		func() {
+			noticeChan = make(chan string)
+		},
+	)
+
 	var client = &DatabaseStorage{
 		DatabaseType: dbType,
 		DatabaseHost: host,
@@ -34,7 +44,7 @@ func NewDatabaseStorage(dbType, host, username, password, dbName string, port in
 		Username:     username,
 		Password:     password,
 		DatabaseName: dbName,
-		NoticeChan:   make(chan string),
+		NoticeChan:   noticeChan,
 	}
 	err := client.getDBPool()
 	if err != nil {
@@ -119,7 +129,7 @@ func (c *DatabaseStorage) getDBPool() error {
 	return nil
 }
 func (c *DatabaseStorage) migrate() error {
-	return nil
+	return c.db.AutoMigrate(&Cluster{}, &Endpoint{}, &Node{}, &Listener{}, &Route{}, &HeaderRoute{})
 }
 
 func (c *DatabaseStorage) getEnvoyConfig(nodeID string) (*storage.EnvoyConfig, error) {
