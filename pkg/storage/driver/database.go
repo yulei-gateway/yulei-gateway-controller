@@ -149,8 +149,8 @@ type Cluster struct {
 
 type Endpoint struct {
 	gorm.Model
-	Address  string    `json:"address" gorm:"uniqueIndex:idx_endpoint,priority:2"`
-	Port     int       `json:"port" gorm:"uniqueIndex:idx_endpoint,priority:3"`
+	Address  string    `json:"address" gorm:"index:idx_endpoint,priority:2"`
+	Port     int       `json:"port" gorm:"index:idx_endpoint,priority:3"`
 	Clusters []Cluster `json:"clusters" gorm:"many2many:cluster_endpoints;"`
 }
 
