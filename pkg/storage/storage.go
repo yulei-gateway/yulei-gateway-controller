@@ -10,8 +10,8 @@
 package storage
 
 type Storage interface {
-	getEnvoyConfig(nodeID string) (*EnvoyConfig, error)
-	getChangeMsgChan() chan string
+	GetEnvoyConfig(nodeID string) (*EnvoyConfig, error)
+	GetChangeMsgChan() chan string
 }
 
 type EnvoyConfig struct {
@@ -32,9 +32,15 @@ type Listener struct {
 }
 
 type Route struct {
-	Name         string   `yaml:"name"`
-	Prefix       string   `yaml:"prefix"`
-	ClusterNames []string `yaml:"clusters"`
+	Name         string        `yaml:"name"`
+	Prefix       string        `yaml:"prefix"`
+	Headers      []HeaderRoute `yaml:"headers"`
+	ClusterNames []string      `yaml:"clusters"`
+}
+
+type HeaderRoute struct {
+	HeaderName  string `yaml:"headerName"`
+	HeaderValue string `yaml:"headerValue"`
 }
 
 type Cluster struct {

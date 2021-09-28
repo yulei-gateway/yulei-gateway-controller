@@ -132,10 +132,66 @@ func (c *DatabaseStorage) migrate() error {
 	return c.db.AutoMigrate(&Cluster{}, &Endpoint{}, &Node{}, &Listener{}, &Route{}, &HeaderRoute{})
 }
 
-func (c *DatabaseStorage) getEnvoyConfig(nodeID string) (*storage.EnvoyConfig, error) {
-	return nil, nil
+//GetEnvoyConfig get a envoy node config
+func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*storage.EnvoyConfig, error) {
+	var envoyNode = &Node{}
+	//err := mysqlTest.db.Debug().Table("nodes").Select("nodes.*,listeners.*").Joins("left join listeners on nodes.id=listeners.node_id").
+	//	First(envoyNode, "envoy_node_id=?", "test").Error
+	err := c.db.Debug().Table("nodes").Preload("Listeners.Routes.Headers").Preload("Listeners.Routes.Clusters.Endpoints").First(envoyNode, "envoy_node_id=?", nodeID).Error
+	if err != nil {
+		return nil, err
+	}
+	result := &storage.EnvoyConfig{}
+	var envoyListeners = envoyNode.Listeners
+	var storageListeners []storage.Listener
+	var storageClusters []storage.Cluster
+	for _, envoyListenerItem := range envoyListeners {
+		storageListener := storage.Listener{}
+		storageListener.Address = envoyListenerItem.Address
+		storageListener.Name = envoyListenerItem.Name
+		storageListener.Port = envoyListenerItem.Port
+		var storageRoutes []storage.Route
+		for _, dbRouteItem := range envoyListenerItem.Routes {
+			storageRoute := storage.Route{}
+			storageRoute.Name = dbRouteItem.Name
+			storageRoute.Prefix = dbRouteItem.Prefix
+			var storageHeaderRoutes []storage.HeaderRoute
+			for _, dbHeaderItem := range dbRouteItem.Headers {
+				storageHeaderRoute := storage.HeaderRoute{}
+				storageHeaderRoute.HeaderName = dbHeaderItem.HeaderName
+				storageHeaderRoute.HeaderValue = dbHeaderItem.HeaderValue
+				storageHeaderRoutes = append(storageHeaderRoutes, storageHeaderRoute)
+			}
+			storageRoute.Headers = storageHeaderRoutes
+			var clusterNames []string
+			for _, dbRouteCluster := range dbRouteItem.Clusters {
+				storageCluster := storage.Cluster{}
+				storageCluster.Name = dbRouteCluster.Name
+				clusterNames = append(clusterNames, dbRouteCluster.Name)
+				var storageEndpoints []storage.Endpoint
+				for _, dbEndpoint := range dbRouteCluster.Endpoints {
+					storageEndpoint := storage.Endpoint{}
+					storageEndpoint.Address = dbEndpoint.Address
+					storageEndpoint.Port = uint32(dbEndpoint.Port)
+					storageEndpoints = append(storageEndpoints, storageEndpoint)
+				}
+				storageCluster.Endpoints = storageEndpoints
+				storageClusters = append(storageClusters, storageCluster)
+			}
+			storageRoute.ClusterNames = clusterNames
+			storageRoutes = append(storageRoutes, storageRoute)
+		}
+		storageListener.Routes = storageRoutes
+		storageListeners = append(storageListeners, storageListener)
+	}
+	result.Name = nodeID
+	result.Spec.Clusters = storageClusters
+	result.Spec.Listeners = storageListeners
+	return result, nil
 }
-func (c *DatabaseStorage) getChangeMsgChan() chan string {
+
+//GetChangeMsgChan get the chan which data change will send notice message
+func (c *DatabaseStorage) GetChangeMsgChan() chan string {
 	return c.NoticeChan
 }
 
