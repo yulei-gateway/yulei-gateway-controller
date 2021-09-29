@@ -11,7 +11,7 @@ import (
 	_ "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/envoyproxy/go-control-plane/pkg/resource/v3"
+	envoyresource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	_ "github.com/envoyproxy/go-control-plane/pkg/wellknown"
 )
 
@@ -93,10 +93,10 @@ func makeEDSCluster() *cluster.Cluster_EdsClusterConfig {
 }
 func makeConfigSource() *core.ConfigSource {
 	source := &core.ConfigSource{}
-	source.ResourceApiVersion = resource.DefaultAPIVersion
+	source.ResourceApiVersion = envoyresource.DefaultAPIVersion
 	source.ConfigSourceSpecifier = &core.ConfigSource_ApiConfigSource{
 		ApiConfigSource: &core.ApiConfigSource{
-			TransportApiVersion:       resource.DefaultAPIVersion,
+			TransportApiVersion:       envoyresource.DefaultAPIVersion,
 			ApiType:                   core.ApiConfigSource_GRPC,
 			SetNodeOnFirstMessageOnly: true,
 			GrpcServices: []*core.GrpcService{{
