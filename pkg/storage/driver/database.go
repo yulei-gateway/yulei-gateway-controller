@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
+	"github.com/yulei-gateway/yulei-gateway-controller/pkg/resource"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -133,7 +133,7 @@ func (c *DatabaseStorage) migrate() error {
 }
 
 //GetEnvoyConfig get a envoy node config
-func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*storage.EnvoyConfig, error) {
+func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, error) {
 	var envoyNode = &Node{}
 	//err := mysqlTest.db.Debug().Table("nodes").Select("nodes.*,listeners.*").Joins("left join listeners on nodes.id=listeners.node_id").
 	//	First(envoyNode, "envoy_node_id=?", "test").Error
@@ -141,23 +141,23 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*storage.EnvoyConfig, e
 	if err != nil {
 		return nil, err
 	}
-	result := &storage.EnvoyConfig{}
+	result := &resource.EnvoyConfig{}
 	var envoyListeners = envoyNode.Listeners
-	var storageListeners []storage.Listener
-	var storageClusters []storage.Cluster
+	var storageListeners []resource.Listener
+	var storageClusters []resource.Cluster
 	for _, envoyListenerItem := range envoyListeners {
-		storageListener := storage.Listener{}
+		storageListener := resource.Listener{}
 		storageListener.Address = envoyListenerItem.Address
 		storageListener.Name = envoyListenerItem.Name
 		storageListener.Port = envoyListenerItem.Port
-		var storageRoutes []storage.Route
+		var storageRoutes []resource.Route
 		for _, dbRouteItem := range envoyListenerItem.Routes {
-			storageRoute := storage.Route{}
+			storageRoute := resource.Route{}
 			storageRoute.Name = dbRouteItem.Name
 			storageRoute.Prefix = dbRouteItem.Prefix
-			var storageHeaderRoutes []storage.HeaderRoute
+			var storageHeaderRoutes []resource.HeaderRoute
 			for _, dbHeaderItem := range dbRouteItem.Headers {
-				storageHeaderRoute := storage.HeaderRoute{}
+				storageHeaderRoute := resource.HeaderRoute{}
 				storageHeaderRoute.HeaderName = dbHeaderItem.HeaderName
 				storageHeaderRoute.HeaderValue = dbHeaderItem.HeaderValue
 				storageHeaderRoutes = append(storageHeaderRoutes, storageHeaderRoute)
@@ -165,12 +165,12 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*storage.EnvoyConfig, e
 			storageRoute.Headers = storageHeaderRoutes
 			var clusterNames []string
 			for _, dbRouteCluster := range dbRouteItem.Clusters {
-				storageCluster := storage.Cluster{}
+				storageCluster := resource.Cluster{}
 				storageCluster.Name = dbRouteCluster.Name
 				clusterNames = append(clusterNames, dbRouteCluster.Name)
-				var storageEndpoints []storage.Endpoint
+				var storageEndpoints []resource.Endpoint
 				for _, dbEndpoint := range dbRouteCluster.Endpoints {
-					storageEndpoint := storage.Endpoint{}
+					storageEndpoint := resource.Endpoint{}
 					storageEndpoint.Address = dbEndpoint.Address
 					storageEndpoint.Port = uint32(dbEndpoint.Port)
 					storageEndpoints = append(storageEndpoints, storageEndpoint)
