@@ -71,9 +71,9 @@ func (e *EnvoyConfig) BuildRoute() (*route.RouteConfiguration, error) {
 	return nil, nil
 }
 
-func (e *EnvoyConfig) BuildEndpoint() (*endpoint.ClusterLoadAssignment, error) {
-	var endpoints []*endpoint.LbEndpoint
+func (e *EnvoyConfig) BuildEndpoint() ([]*endpoint.ClusterLoadAssignment, error) {
 	for _, cluster := range e.Clusters {
+		var endpoints []*endpoint.LbEndpoint
 		for _, endpointItem := range cluster.Endpoints {
 			var endpoint = &endpoint.LbEndpoint{
 				HostIdentifier: &endpoint.LbEndpoint_Endpoint{
@@ -94,15 +94,16 @@ func (e *EnvoyConfig) BuildEndpoint() (*endpoint.ClusterLoadAssignment, error) {
 			}
 			endpoints = append(endpoints, endpoint)
 		}
+		if len(endpoints) > 0 {
+			var result []*endpoint.ClusterLoadAssignment
+			result = append(result, &endpoint.ClusterLoadAssignment{
+				ClusterName: cluster.Name,
+				Endpoints: []*endpoint.LocalityLbEndpoints{{
+					LbEndpoints: endpoints,
+				}},
+			})
+			return result, nil
+		}
 	}
-	if len(endpoints) > 0 {
-		return &endpoint.ClusterLoadAssignment{
-			ClusterName: clusterName,
-			Endpoints: []*endpoint.LocalityLbEndpoints{{
-				LbEndpoints: endpoints,
-			}},
-		}, nil
-	}
-
 	return nil, nil
 }
