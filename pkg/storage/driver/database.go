@@ -154,7 +154,8 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 		for _, dbRouteItem := range envoyListenerItem.Routes {
 			storageRoute := resource.Route{}
 			storageRoute.Name = dbRouteItem.Name
-			storageRoute.Prefix = dbRouteItem.Prefix
+			storageRoute.PathType = resource.RoutePathType(dbRouteItem.PathType)
+			storageRoute.PathValue = dbRouteItem.PathValue
 			var storageHeaderRoutes []resource.HeaderRoute
 			for _, dbHeaderItem := range dbRouteItem.Headers {
 				storageHeaderRoute := resource.HeaderRoute{}
@@ -178,7 +179,7 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 				storageCluster.Endpoints = storageEndpoints
 				storageClusters = append(storageClusters, storageCluster)
 			}
-			storageRoute.ClusterNames = clusterNames
+			storageRoute.Clusters = clusterNames
 			storageRoutes = append(storageRoutes, storageRoute)
 		}
 		storageListener.Routes = storageRoutes
@@ -228,7 +229,8 @@ type Listener struct {
 type Route struct {
 	gorm.Model
 	Name       string        `yaml:"name"`
-	Prefix     string        `yaml:"prefix"`
+	PathType   int           `yaml:"pathType"`
+	PathValue  string        `yaml:"pathValue"`
 	Headers    []HeaderRoute `json:"headers" gorm:"foreignKey:RouteID"`
 	Clusters   []Cluster     `json:"clusters" gorm:"many2many:route_clusters;"`
 	ListenerID int           `json:"listenerID"  gorm:"index:idx_listener_id;"`

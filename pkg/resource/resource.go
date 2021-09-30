@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -9,6 +11,8 @@ import (
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	_ "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	envoy_type_matcher_v3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	envoyresource "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
@@ -18,6 +22,10 @@ import (
 type EnvoyConfig struct {
 	Name string `yaml:"name"`
 	Spec `yaml:"spec"`
+}
+
+type isRouteMatchPathSpecifier interface {
+	isRouteMatch_PathSpecifier()
 }
 
 type CircuitBreakers struct {
@@ -48,16 +56,41 @@ type Listener struct {
 	Routes  []Route `yaml:"routes"`
 }
 
+type RoutePathType int
+type HeaderMatchType int
+
+const (
+	Prefix RoutePathType = iota
+	Path
+	Regex
+
+	Contains HeaderMatchType = iota
+	SuffixMatch
+	PrefixMatch
+	PresentMatch
+	RangeMatch
+	SafeRegexMatch
+	ExactMatch
+)
+
 type Route struct {
-	Name         string        `yaml:"name"`
-	Prefix       string        `yaml:"prefix"`
-	Headers      []HeaderRoute `yaml:"headers"`
-	ClusterNames []string      `yaml:"clusters"`
+	Name      string               `yaml:"name"`
+	PathType  RoutePathType        `yaml:"pathType"`
+	PathValue string               `yaml:"pathValue"`
+	Headers   []HeaderRoute        `yaml:"headers"`
+	Clusters  []RouteWeightCluster `yaml:"clusters"`
+}
+
+type RouteWeightCluster struct {
+	Name   string `yaml:"name"`
+	Weight int    `yaml:weight`
 }
 
 type HeaderRoute struct {
-	HeaderName  string `yaml:"headerName"`
-	HeaderValue string `yaml:"headerValue"`
+	HeaderName        string          `yaml:"headerName"`
+	HeaderMatcherType HeaderMatchType `yaml:"headerMatchType"`
+	HeaderValue       string          `yaml:"headerValue"`
+	InvertMatch       bool            `yaml:"invertMatch"`
 }
 
 type Cluster struct {
@@ -124,7 +157,119 @@ func (e *EnvoyConfig) BuildListener() (*listener.Listener, error) {
 	return nil, nil
 }
 
-func (e *EnvoyConfig) BuildRoute() (*route.RouteConfiguration, error) {
+func (e *EnvoyConfig) BuildRoutes() ([]route.RouteConfiguration, error) {
+	var result []route.RouteConfiguration
+	for _, listener := range e.Listeners {
+		var rts []*route.Route
+		for _, routeItem := range listener.Routes {
+			var listenerRoute = &route.Route{}
+			var routeMatch = &route.RouteMatch{}
+
+			switch routeItem.PathType {
+			case Prefix:
+				routeMatch.PathSpecifier = &route.RouteMatch_Prefix{
+					Prefix: routeItem.PathValue,
+				}
+			case Path:
+				routeMatch.PathSpecifier = &route.RouteMatch_Path{
+					Path: routeItem.PathValue,
+				}
+			case Regex:
+				routeMatch.PathSpecifier = &route.RouteMatch_SafeRegex{
+					SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+						EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
+							GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
+						},
+						Regex: routeItem.PathValue,
+					},
+				}
+			}
+
+			if len(routeItem.Headers) > 0 {
+				var headerMatchers []*route.HeaderMatcher
+				for _, headerRouteItem := range routeItem.Headers {
+					routeHeaderMatcher := &route.HeaderMatcher{
+						Name: headerRouteItem.HeaderName,
+					}
+					switch headerRouteItem.HeaderMatcherType {
+					case ExactMatch:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ExactMatch{
+							ExactMatch: headerRouteItem.HeaderValue,
+						}
+					case Contains:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ContainsMatch{
+							ContainsMatch: headerRouteItem.HeaderValue,
+						}
+					case PrefixMatch:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PrefixMatch{
+							PrefixMatch: headerRouteItem.HeaderValue,
+						}
+					case SuffixMatch:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SuffixMatch{
+							SuffixMatch: headerRouteItem.HeaderValue,
+						}
+					case SafeRegexMatch:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SafeRegexMatch{
+							SafeRegexMatch: &envoy_type_matcher_v3.RegexMatcher{
+								EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
+									GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
+								},
+								Regex: headerRouteItem.HeaderValue,
+							},
+						}
+					case PresentMatch:
+						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PresentMatch{
+							PresentMatch: true,
+						}
+					case RangeMatch:
+						if headerRouteItem.HeaderValue != "" {
+							var rangeInfo = strings.Split(headerRouteItem.HeaderValue, ",")
+							if len(rangeInfo) != 2 {
+								break
+							}
+							start, err := strconv.Atoi(rangeInfo[0])
+							if err != nil {
+								break
+							}
+							end, err := strconv.Atoi(rangeInfo[1])
+							if err != nil {
+								break
+							}
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_RangeMatch{
+								RangeMatch: &envoy_type_v3.Int64Range{
+									Start: int64(start),
+									End:   int64(end),
+								},
+							}
+						}
+
+					}
+					routeHeaderMatcher.InvertMatch = headerRouteItem.InvertMatch
+					headerMatchers = append(headerMatchers, routeHeaderMatcher)
+				}
+				routeMatch.Headers = headerMatchers
+			}
+			listenerRoute.Match = routeMatch
+			listenerRoute.Action = &route.Route_Route{
+				Route: &route.RouteAction{
+					ClusterSpecifier: &route.RouteAction_Cluster{
+						Cluster: routeItem.ClusterName,
+					},
+				},
+			}
+			rts = append(rts, listenerRoute)
+		}
+	}
+
+	return nil, nil
+}
+
+func (e *EnvoyConfig) BuildRoute(listenerName string) (*route.RouteConfiguration, error) {
+	for _, listener := range e.Listeners {
+		if listener.Name == listenerName {
+
+		}
+	}
 	return nil, nil
 }
 

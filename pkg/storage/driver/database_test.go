@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/yulei-gateway/yulei-gateway-controller/pkg/resource"
 )
 
 func Test_GetEnvoyConfig(t *testing.T) {
@@ -120,8 +122,9 @@ func Test_database(t *testing.T) {
 	if len(listeners) > 0 {
 		var routes = []Route{
 			{
-				Name:   "test",
-				Prefix: "/",
+				Name:      "test",
+				PathType:  int(resource.Prefix),
+				PathValue: "/",
 				Headers: []HeaderRoute{
 					{
 						HeaderName:  "x-test-service",
