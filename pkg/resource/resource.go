@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -50,10 +52,10 @@ type Spec struct {
 }
 
 type Listener struct {
-	Name    string  `yaml:"name"`
-	Address string  `yaml:"address"`
-	Port    uint32  `yaml:"port"`
-	Routes  []Route `yaml:"routes"`
+	Name        string       `yaml:"name"`
+	Address     string       `yaml:"address"`
+	Port        uint32       `yaml:"port"`
+	RouteConfig *RouteConfig `yaml:"routes"`
 }
 
 type RoutePathType int
@@ -73,6 +75,17 @@ const (
 	ExactMatch
 )
 
+type RouteConfig struct {
+	Name         string
+	VirtualHosts []VirtualHost
+}
+
+type VirtualHost struct {
+	Name    string
+	Domains []string
+	Routes  []Route
+}
+
 type Route struct {
 	Name      string               `yaml:"name"`
 	PathType  RoutePathType        `yaml:"pathType"`
@@ -82,8 +95,8 @@ type Route struct {
 }
 
 type RouteWeightCluster struct {
-	Name   string `yaml:"name"`
-	Weight int    `yaml:weight`
+	ClusterName string `yaml:"name"`
+	Weight      uint32 `yaml:"weight"`
 }
 
 type HeaderRoute struct {
@@ -103,10 +116,10 @@ type Endpoint struct {
 	Port    uint32 `yaml:"port"`
 }
 
-func (e *EnvoyConfig) BuildClusters() ([]cluster.Cluster, error) {
-	var result []cluster.Cluster
+func (e *EnvoyConfig) BuildClusters() ([]*cluster.Cluster, error) {
+	var result []*cluster.Cluster
 	for _, item := range e.Clusters {
-		result = append(result, cluster.Cluster{
+		result = append(result, &cluster.Cluster{
 			Name:                 item.Name,
 			ConnectTimeout:       durationpb.New(5 * time.Second),
 			ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_EDS},
@@ -147,7 +160,7 @@ func (e *EnvoyConfig) BuildCluster(clusterName string) (*cluster.Cluster, error)
 	clusters, _ := e.BuildClusters()
 	for _, item := range clusters {
 		if item.Name == clusterName {
-			return &item, nil
+			return item, nil
 		}
 	}
 	return nil, nil
@@ -157,117 +170,155 @@ func (e *EnvoyConfig) BuildListener() (*listener.Listener, error) {
 	return nil, nil
 }
 
-func (e *EnvoyConfig) BuildRoutes() ([]route.RouteConfiguration, error) {
-	var result []route.RouteConfiguration
-	for _, listener := range e.Listeners {
-		var rts []*route.Route
-		for _, routeItem := range listener.Routes {
-			var listenerRoute = &route.Route{}
-			var routeMatch = &route.RouteMatch{}
+func (e *EnvoyConfig) BuildRoutes() ([]*route.RouteConfiguration, error) {
+	var result []*route.RouteConfiguration
+	for _, listenerItem := range e.Listeners {
+		var routeConfig = listenerItem.RouteConfig
+		var routeVirtualHosts []*route.VirtualHost
+		for _, virtualHost := range listenerItem.RouteConfig.VirtualHosts {
+			var rts []*route.Route
+			for _, routeItem := range virtualHost.Routes {
+				var listenerRoute = &route.Route{}
+				var routeMatch = &route.RouteMatch{}
 
-			switch routeItem.PathType {
-			case Prefix:
-				routeMatch.PathSpecifier = &route.RouteMatch_Prefix{
-					Prefix: routeItem.PathValue,
-				}
-			case Path:
-				routeMatch.PathSpecifier = &route.RouteMatch_Path{
-					Path: routeItem.PathValue,
-				}
-			case Regex:
-				routeMatch.PathSpecifier = &route.RouteMatch_SafeRegex{
-					SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
-						EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
-							GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
-						},
-						Regex: routeItem.PathValue,
-					},
-				}
-			}
-
-			if len(routeItem.Headers) > 0 {
-				var headerMatchers []*route.HeaderMatcher
-				for _, headerRouteItem := range routeItem.Headers {
-					routeHeaderMatcher := &route.HeaderMatcher{
-						Name: headerRouteItem.HeaderName,
+				switch routeItem.PathType {
+				case Prefix:
+					routeMatch.PathSpecifier = &route.RouteMatch_Prefix{
+						Prefix: routeItem.PathValue,
 					}
-					switch headerRouteItem.HeaderMatcherType {
-					case ExactMatch:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ExactMatch{
-							ExactMatch: headerRouteItem.HeaderValue,
-						}
-					case Contains:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ContainsMatch{
-							ContainsMatch: headerRouteItem.HeaderValue,
-						}
-					case PrefixMatch:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PrefixMatch{
-							PrefixMatch: headerRouteItem.HeaderValue,
-						}
-					case SuffixMatch:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SuffixMatch{
-							SuffixMatch: headerRouteItem.HeaderValue,
-						}
-					case SafeRegexMatch:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SafeRegexMatch{
-							SafeRegexMatch: &envoy_type_matcher_v3.RegexMatcher{
-								EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
-									GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
-								},
-								Regex: headerRouteItem.HeaderValue,
+				case Path:
+					routeMatch.PathSpecifier = &route.RouteMatch_Path{
+						Path: routeItem.PathValue,
+					}
+				case Regex:
+					routeMatch.PathSpecifier = &route.RouteMatch_SafeRegex{
+						SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+							EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
+								GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
 							},
+							Regex: routeItem.PathValue,
+						},
+					}
+				}
+
+				if len(routeItem.Headers) > 0 {
+					var headerMatchers []*route.HeaderMatcher
+					for _, headerRouteItem := range routeItem.Headers {
+						routeHeaderMatcher := &route.HeaderMatcher{
+							Name: headerRouteItem.HeaderName,
 						}
-					case PresentMatch:
-						routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PresentMatch{
-							PresentMatch: true,
-						}
-					case RangeMatch:
-						if headerRouteItem.HeaderValue != "" {
-							var rangeInfo = strings.Split(headerRouteItem.HeaderValue, ",")
-							if len(rangeInfo) != 2 {
-								break
+						switch headerRouteItem.HeaderMatcherType {
+						case ExactMatch:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ExactMatch{
+								ExactMatch: headerRouteItem.HeaderValue,
 							}
-							start, err := strconv.Atoi(rangeInfo[0])
-							if err != nil {
-								break
+						case Contains:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_ContainsMatch{
+								ContainsMatch: headerRouteItem.HeaderValue,
 							}
-							end, err := strconv.Atoi(rangeInfo[1])
-							if err != nil {
-								break
+						case PrefixMatch:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PrefixMatch{
+								PrefixMatch: headerRouteItem.HeaderValue,
 							}
-							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_RangeMatch{
-								RangeMatch: &envoy_type_v3.Int64Range{
-									Start: int64(start),
-									End:   int64(end),
+						case SuffixMatch:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SuffixMatch{
+								SuffixMatch: headerRouteItem.HeaderValue,
+							}
+						case SafeRegexMatch:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_SafeRegexMatch{
+								SafeRegexMatch: &envoy_type_matcher_v3.RegexMatcher{
+									EngineType: &envoy_type_matcher_v3.RegexMatcher_GoogleRe2{
+										GoogleRe2: &envoy_type_matcher_v3.RegexMatcher_GoogleRE2{},
+									},
+									Regex: headerRouteItem.HeaderValue,
 								},
 							}
+						case PresentMatch:
+							routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_PresentMatch{
+								PresentMatch: true,
+							}
+						case RangeMatch:
+							if headerRouteItem.HeaderValue != "" {
+								var rangeInfo = strings.Split(headerRouteItem.HeaderValue, ",")
+								if len(rangeInfo) != 2 {
+									break
+								}
+								start, err := strconv.Atoi(rangeInfo[0])
+								if err != nil {
+									break
+								}
+								end, err := strconv.Atoi(rangeInfo[1])
+								if err != nil {
+									break
+								}
+								routeHeaderMatcher.HeaderMatchSpecifier = &route.HeaderMatcher_RangeMatch{
+									RangeMatch: &envoy_type_v3.Int64Range{
+										Start: int64(start),
+										End:   int64(end),
+									},
+								}
+							}
+
 						}
-
+						routeHeaderMatcher.InvertMatch = headerRouteItem.InvertMatch
+						headerMatchers = append(headerMatchers, routeHeaderMatcher)
 					}
-					routeHeaderMatcher.InvertMatch = headerRouteItem.InvertMatch
-					headerMatchers = append(headerMatchers, routeHeaderMatcher)
+					routeMatch.Headers = headerMatchers
 				}
-				routeMatch.Headers = headerMatchers
-			}
-			listenerRoute.Match = routeMatch
-			listenerRoute.Action = &route.Route_Route{
-				Route: &route.RouteAction{
-					ClusterSpecifier: &route.RouteAction_Cluster{
-						Cluster: routeItem.ClusterName,
+				listenerRoute.Match = routeMatch
+				var clusters []*route.WeightedCluster_ClusterWeight
+				var totalClustersWeight uint32 = 0
+				for _, routeClusterItem := range routeItem.Clusters {
+					var weight = routeClusterItem.Weight
+					if routeClusterItem.Weight == 0 {
+						weight = 100
+					}
+					localClusterItem := &route.WeightedCluster_ClusterWeight{
+						Name:   routeClusterItem.ClusterName,
+						Weight: &wrapperspb.UInt32Value{Value: weight},
+					}
+					totalClustersWeight = totalClustersWeight + weight
+					clusters = append(clusters, localClusterItem)
+				}
+				listenerRoute.Action = &route.Route_Route{
+					Route: &route.RouteAction{
+						//ClusterSpecifier: &route.RouteAction_Cluster{
+						//	Cluster: routeItem.ClusterName,
+						//},
+						ClusterSpecifier: &route.RouteAction_WeightedClusters{
+							WeightedClusters: &route.WeightedCluster{
+								Clusters:    clusters,
+								TotalWeight: &wrapperspb.UInt32Value{Value: totalClustersWeight},
+							},
+						},
 					},
-				},
+				}
+				rts = append(rts, listenerRoute)
 			}
-			rts = append(rts, listenerRoute)
+			routeVirtualHosts = append(routeVirtualHosts, &route.VirtualHost{
+				Name:    virtualHost.Name,
+				Domains: virtualHost.Domains,
+				Routes:  rts,
+			})
 		}
-	}
+		var rcf = &route.RouteConfiguration{
+			Name:         routeConfig.Name,
+			VirtualHosts: routeVirtualHosts,
+		}
+		result = append(result, rcf)
 
-	return nil, nil
+	}
+	return result, nil
 }
 
 func (e *EnvoyConfig) BuildRoute(listenerName string) (*route.RouteConfiguration, error) {
-	for _, listener := range e.Listeners {
-		if listener.Name == listenerName {
-
+	routes, err := e.BuildRoutes()
+	if err != nil {
+		return nil, err
+	}
+	for _, routeItem := range routes {
+		if routeItem.Name == listenerName {
+			return routeItem, nil
 		}
 	}
 	return nil, nil
@@ -280,17 +331,17 @@ func (e *EnvoyConfig) BuildEndpoint(clusterName string) (*endpoint.ClusterLoadAs
 	}
 	for _, item := range clusters {
 		if item.ClusterName == clusterName {
-			return &item, nil
+			return item, nil
 		}
 	}
 	return nil, nil
 }
 
-func (e *EnvoyConfig) BuildEndpoints() ([]endpoint.ClusterLoadAssignment, error) {
-	for _, cluster := range e.Clusters {
+func (e *EnvoyConfig) BuildEndpoints() ([]*endpoint.ClusterLoadAssignment, error) {
+	for _, clusterItem := range e.Clusters {
 		var endpoints []*endpoint.LbEndpoint
-		for _, endpointItem := range cluster.Endpoints {
-			var endpoint = &endpoint.LbEndpoint{
+		for _, endpointItem := range clusterItem.Endpoints {
+			var resourceEndpoint = &endpoint.LbEndpoint{
 				HostIdentifier: &endpoint.LbEndpoint_Endpoint{
 					Endpoint: &endpoint.Endpoint{
 						Address: &core.Address{
@@ -307,12 +358,12 @@ func (e *EnvoyConfig) BuildEndpoints() ([]endpoint.ClusterLoadAssignment, error)
 					},
 				},
 			}
-			endpoints = append(endpoints, endpoint)
+			endpoints = append(endpoints, resourceEndpoint)
 		}
 		if len(endpoints) > 0 {
-			var result []endpoint.ClusterLoadAssignment
-			result = append(result, endpoint.ClusterLoadAssignment{
-				ClusterName: cluster.Name,
+			var result []*endpoint.ClusterLoadAssignment
+			result = append(result, &endpoint.ClusterLoadAssignment{
+				ClusterName: clusterItem.Name,
 				Endpoints: []*endpoint.LocalityLbEndpoints{{
 					LbEndpoints: endpoints,
 				}},

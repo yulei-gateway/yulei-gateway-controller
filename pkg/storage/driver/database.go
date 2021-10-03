@@ -150,39 +150,56 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 		storageListener.Address = envoyListenerItem.Address
 		storageListener.Name = envoyListenerItem.Name
 		storageListener.Port = envoyListenerItem.Port
-		var storageRoutes []resource.Route
-		for _, dbRouteItem := range envoyListenerItem.Routes {
-			storageRoute := resource.Route{}
-			storageRoute.Name = dbRouteItem.Name
-			storageRoute.PathType = resource.RoutePathType(dbRouteItem.PathType)
-			storageRoute.PathValue = dbRouteItem.PathValue
-			var storageHeaderRoutes []resource.HeaderRoute
-			for _, dbHeaderItem := range dbRouteItem.Headers {
-				storageHeaderRoute := resource.HeaderRoute{}
-				storageHeaderRoute.HeaderName = dbHeaderItem.HeaderName
-				storageHeaderRoute.HeaderValue = dbHeaderItem.HeaderValue
-				storageHeaderRoutes = append(storageHeaderRoutes, storageHeaderRoute)
-			}
-			storageRoute.Headers = storageHeaderRoutes
-			var clusterNames []string
-			for _, dbRouteCluster := range dbRouteItem.Clusters {
-				storageCluster := resource.Cluster{}
-				storageCluster.Name = dbRouteCluster.Name
-				clusterNames = append(clusterNames, dbRouteCluster.Name)
-				var storageEndpoints []resource.Endpoint
-				for _, dbEndpoint := range dbRouteCluster.Endpoints {
-					storageEndpoint := resource.Endpoint{}
-					storageEndpoint.Address = dbEndpoint.Address
-					storageEndpoint.Port = uint32(dbEndpoint.Port)
-					storageEndpoints = append(storageEndpoints, storageEndpoint)
+		var routeConfig = envoyListenerItem.RouteConfig
+		var virtualHosts []resource.VirtualHost
+		for _, virtualHostItem := range routeConfig.VirtualHosts {
+			var storageRoutes []resource.Route
+
+			for _, dbRouteItem := range virtualHostItem.Routes {
+				storageRoute := resource.Route{}
+				storageRoute.Name = dbRouteItem.Name
+				storageRoute.PathType = resource.RoutePathType(dbRouteItem.PathType)
+				storageRoute.PathValue = dbRouteItem.PathValue
+				var storageHeaderRoutes []resource.HeaderRoute
+				for _, dbHeaderItem := range dbRouteItem.Headers {
+					storageHeaderRoute := resource.HeaderRoute{}
+					storageHeaderRoute.HeaderName = dbHeaderItem.HeaderName
+					storageHeaderRoute.HeaderValue = dbHeaderItem.HeaderValue
+					storageHeaderRoutes = append(storageHeaderRoutes, storageHeaderRoute)
 				}
-				storageCluster.Endpoints = storageEndpoints
-				storageClusters = append(storageClusters, storageCluster)
+				storageRoute.Headers = storageHeaderRoutes
+				var clusterNames []resource.RouteWeightCluster
+				for _, dbRouteCluster := range dbRouteItem.Clusters {
+					storageCluster := resource.Cluster{}
+					storageCluster.Name = dbRouteCluster.Name
+					clusterNames = append(clusterNames, resource.RouteWeightCluster{
+						ClusterName: dbRouteCluster.Name,
+						Weight:      dbRouteCluster.Weight,
+					})
+					var storageEndpoints []resource.Endpoint
+					for _, dbEndpoint := range dbRouteCluster.Endpoints {
+						storageEndpoint := resource.Endpoint{}
+						storageEndpoint.Address = dbEndpoint.Address
+						storageEndpoint.Port = uint32(dbEndpoint.Port)
+						storageEndpoints = append(storageEndpoints, storageEndpoint)
+					}
+					storageCluster.Endpoints = storageEndpoints
+					storageClusters = append(storageClusters, storageCluster)
+				}
+				storageRoute.Clusters = clusterNames
+				storageRoutes = append(storageRoutes, storageRoute)
 			}
-			storageRoute.Clusters = clusterNames
-			storageRoutes = append(storageRoutes, storageRoute)
+			virtualHosts = append(virtualHosts, resource.VirtualHost{
+				Name:    virtualHostItem.Name,
+				Routes:  storageRoutes,
+				Domains: virtualHostItem.Domain,
+			})
 		}
-		storageListener.Routes = storageRoutes
+		var storageRouteConfig = &resource.RouteConfig{
+			Name:         routeConfig.Name,
+			VirtualHosts: virtualHosts,
+		}
+		storageListener.RouteConfig = storageRouteConfig
 		storageListeners = append(storageListeners, storageListener)
 	}
 	result.Name = nodeID
@@ -200,6 +217,7 @@ func (c *DatabaseStorage) GetChangeMsgChan() chan string {
 type Cluster struct {
 	gorm.Model
 	Name      string     `json:"name" gorm:"index"`
+	Weight    uint32     `json:"weight" yaml:"weight"`
 	Endpoints []Endpoint `json:"endpoints"  gorm:"many2many:cluster_endpoints;"`
 	Routes    []Route    `json:"routes"  gorm:"many2many:route_clusters;"`
 }
@@ -213,17 +231,32 @@ type Endpoint struct {
 
 type Node struct {
 	gorm.Model
-	EnvoyNodeID string     `json:"nodeID"`
-	Listeners   []Listener `json:"listeners" gorm:"foreignKey:NodeID"`
+	EnvoyNodeID string     `yaml:"nodeID" json:"nodeID"`
+	Listeners   []Listener `yaml:"listeners" json:"listeners" gorm:"foreignKey:NodeID"`
 }
 
 type Listener struct {
 	gorm.Model
-	Name    string  `yaml:"name"`
-	Address string  `yaml:"address"`
-	Port    uint32  `yaml:"port"`
-	Routes  []Route `yaml:"routes" json:"routes" gorm:"foreignKey:ListenerID;"`
-	NodeID  int     `json:"nodeID" gorm:"index:idx_node_id;"`
+	Name        string      `yaml:"name" json:"name"`
+	Address     string      `yaml:"address" json:"address"`
+	Port        uint32      `yaml:"port" json:"port"`
+	RouteConfig RouteConfig `yaml:"routeConfig" json:"routeConfig" gorm:"foreignKey:ListenerID"`
+	NodeID      int         `yaml:"nodeID" json:"nodeID" gorm:"index:idx_node_id;"`
+}
+
+type RouteConfig struct {
+	gorm.Model
+	Name         string        `yaml:"name" json:"name"`
+	ListenerID   int           `yaml:"listenerID" json:"listenerID"`
+	VirtualHosts []VirtualHost `yaml:"virtualHost" json:"virtualHost" gorm:"foreignKey:RouteConfigID;"`
+}
+
+type VirtualHost struct {
+	gorm.Model
+	Name          string   `yaml:"name" json:"name"`
+	Domain        []string `yaml:"domain" json:"domain"`
+	RouteConfigID int      `yaml:"routeConfigID" json:"routeConfigID"`
+	Routes        []Route  `yaml:"routes" json:"routes" gorm:"foreignKey:ListenerID;"`
 }
 
 type Route struct {
