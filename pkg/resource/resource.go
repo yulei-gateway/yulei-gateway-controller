@@ -26,9 +26,10 @@ type EnvoyConfig struct {
 	Spec `yaml:"spec"`
 }
 
-type isRouteMatchPathSpecifier interface {
-	isRouteMatch_PathSpecifier()
-}
+const (
+	wasmHttpFilter    = "envoy.filters.http.wasm"
+	wasmNetworkFilter = "envoy.filters.network.wasm"
+)
 
 type CircuitBreakers struct {
 	Priority           int32

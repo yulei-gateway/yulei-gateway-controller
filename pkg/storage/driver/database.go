@@ -145,7 +145,7 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 	result := &resource.EnvoyConfig{}
 	var envoyListeners = envoyNode.Listeners
 	var storageListeners []resource.Listener
-	var storageClusters []resource.Cluster
+	//var storageClusters []resource.Cluster
 	for _, envoyListenerItem := range envoyListeners {
 		storageListener := resource.Listener{}
 		storageListener.Address = envoyListenerItem.Address
@@ -171,8 +171,8 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 				storageRoute.Headers = storageHeaderRoutes
 				var clusterNames []resource.RouteWeightCluster
 				for _, dbRouteCluster := range dbRouteItem.Clusters {
-					storageCluster := resource.Cluster{}
-					storageCluster.Name = dbRouteCluster.Name
+					//	storageCluster := resource.Cluster{}
+					//	storageCluster.Name = dbRouteCluster.Name
 					clusterNames = append(clusterNames, resource.RouteWeightCluster{
 						ClusterName: dbRouteCluster.Name,
 						Weight:      dbRouteCluster.Weight,
@@ -184,8 +184,8 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 						storageEndpoint.Port = uint32(dbEndpoint.Port)
 						storageEndpoints = append(storageEndpoints, storageEndpoint)
 					}
-					storageCluster.Endpoints = storageEndpoints
-					storageClusters = append(storageClusters, storageCluster)
+					//	storageCluster.Endpoints = storageEndpoints
+					//	storageClusters = append(storageClusters, storageCluster)
 				}
 				storageRoute.Clusters = clusterNames
 				storageRoutes = append(storageRoutes, storageRoute)
@@ -204,8 +204,30 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 		storageListeners = append(storageListeners, storageListener)
 	}
 	result.Name = nodeID
+	var dbClusters = []Cluster{}
+	err = c.db.Debug().Joins("left join node_clusters on node_clusters.cluster_id= clusters.id").Preload("Nodes", "envoy_node_id=?", nodeID).Find(&dbClusters).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var storageClusters []resource.Cluster
+	for _, clusterItem := range dbClusters {
+		storageCluster := resource.Cluster{}
+		storageCluster.Name = clusterItem.Name
+
+		var storageEndpoints []resource.Endpoint
+		for _, dbEndpoint := range clusterItem.Endpoints {
+			storageEndpoint := resource.Endpoint{}
+			storageEndpoint.Address = dbEndpoint.Address
+			storageEndpoint.Port = uint32(dbEndpoint.Port)
+			storageEndpoints = append(storageEndpoints, storageEndpoint)
+		}
+		storageCluster.Endpoints = storageEndpoints
+		storageClusters = append(storageClusters, storageCluster)
+	}
 	result.Spec.Clusters = storageClusters
 	result.Spec.Listeners = storageListeners
+
 	return result, nil
 }
 
@@ -221,6 +243,7 @@ type Cluster struct {
 	Weight    uint32     `json:"weight" yaml:"weight"`
 	Endpoints []Endpoint `json:"endpoints"  gorm:"many2many:cluster_endpoints;"`
 	Routes    []Route    `json:"routes"  gorm:"many2many:route_clusters;"`
+	Nodes     []Node     `json:"nodeID" gorm:"many2many:node_clusters;"`
 }
 
 type Endpoint struct {
@@ -233,7 +256,8 @@ type Endpoint struct {
 type Node struct {
 	gorm.Model
 	EnvoyNodeID string     `yaml:"nodeID" json:"nodeID"`
-	Listeners   []Listener `yaml:"listeners" json:"listeners" gorm:"foreignKey:NodeID"`
+	Listeners   []Listener `yaml:"listeners" json:"listeners" gorm:"many2many:node_listener;"`
+	Clusters    []Cluster  `yaml:"clusters" json:"clusters" gorm:"many2many:node_clusters;"`
 }
 
 type Listener struct {
@@ -242,7 +266,7 @@ type Listener struct {
 	Address     string       `yaml:"address" json:"address"`
 	Port        uint32       `yaml:"port" json:"port"`
 	RouteConfig *RouteConfig `yaml:"routeConfig" json:"routeConfig" gorm:"foreignKey:ListenerID"`
-	NodeID      int          `yaml:"nodeID" json:"nodeID" gorm:"index:idx_node_id;"`
+	Nodes       []Node       `yaml:"nodes" json:"nodes" gorm:"many2many:node_listener;"`
 }
 
 type RouteConfig struct {
