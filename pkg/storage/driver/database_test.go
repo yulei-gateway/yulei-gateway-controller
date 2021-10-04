@@ -9,7 +9,7 @@ import (
 )
 
 func Test_GetEnvoyConfig(t *testing.T) {
-	var mysqlTest = NewDatabaseStorage("mysql", "127.0.0.1", "root", "123456", "yulei_test", 3306)
+	var mysqlTest = NewDatabaseStorage("mysql", "192.168.15.3", "root", "123456", "yulei_test", 3306)
 
 	result, err := mysqlTest.GetEnvoyConfig("test")
 	if err != nil {
@@ -25,11 +25,11 @@ func Test_GetEnvoyConfig(t *testing.T) {
 }
 
 func Test_getNodes(t *testing.T) {
-	var mysqlTest = NewDatabaseStorage("mysql", "127.0.0.1", "root", "123456", "yulei_test", 3306)
+	var mysqlTest = NewDatabaseStorage("mysql", "192.168.15.3", "root", "123456", "yulei_test", 3306)
 	var envoyNode = &Node{}
 	//err := mysqlTest.db.Debug().Table("nodes").Select("nodes.*,listeners.*").Joins("left join listeners on nodes.id=listeners.node_id").
 	//	First(envoyNode, "envoy_node_id=?", "test").Error
-	err := mysqlTest.db.Debug().Table("nodes").Preload("Listeners.Routes.Headers").Preload("Listeners.Routes.Clusters.Endpoints").First(envoyNode, "envoy_node_id=?", "test").Error
+	err := mysqlTest.db.Debug().Table("nodes").Preload("Listeners.RouteConfig.VirtualHosts.Routes.Headers").Preload("Listeners.RouteConfig.VirtualHosts.Routes.Clusters.Endpoints").First(envoyNode, "envoy_node_id=?", "test").Error
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -46,7 +46,7 @@ func Test_getNodes(t *testing.T) {
 }
 
 func Test_database(t *testing.T) {
-	var mysqlTest = NewDatabaseStorage("mysql", "127.0.0.1", "root", "123456", "yulei_test", 3306)
+	var mysqlTest = NewDatabaseStorage("mysql", "192.168.15.3", "root", "123456", "yulei_test", 3306)
 	var clusters = []Cluster{
 		{
 			Name: "vm",
@@ -131,13 +131,26 @@ func Test_database(t *testing.T) {
 						HeaderValue: "vm",
 					},
 				},
-				ListenerID: int(listeners[0].ID),
+				//ListenerID: int(listeners[0].ID),
 				Clusters: []Cluster{
 					*vmcluster,
 				},
 			},
 		}
-		err = mysqlTest.db.Model(&Route{}).CreateInBatches(routes, len(routes)).Error
+		var visualHosts = []VirtualHost{
+			{
+				Name:    "vm",
+				Domains: "*",
+				Routes:  routes,
+			},
+		}
+		var routeConfig = &RouteConfig{
+			Name:         "vm",
+			ListenerID:   listeners[0].ID,
+			VirtualHosts: visualHosts,
+		}
+
+		err = mysqlTest.db.Model(&RouteConfig{}).Create(routeConfig).Error
 		if err != nil {
 			t.Fatal(err)
 			return

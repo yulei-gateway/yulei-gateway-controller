@@ -129,7 +129,8 @@ func (c *DatabaseStorage) getDBPool() error {
 	return nil
 }
 func (c *DatabaseStorage) migrate() error {
-	return c.db.AutoMigrate(&Cluster{}, &Endpoint{}, &Node{}, &Listener{}, &Route{}, &HeaderRoute{})
+	//HeaderRoute,Route,VirtualHost,RouteConfig,Listener,Node,Endpoint,Cluster
+	return c.db.AutoMigrate(&Node{}, &Listener{}, &Cluster{}, &RouteConfig{}, &VirtualHost{}, &HeaderRoute{}, &Route{}, &Endpoint{})
 }
 
 //GetEnvoyConfig get a envoy node config
@@ -137,7 +138,7 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 	var envoyNode = &Node{}
 	//err := mysqlTest.db.Debug().Table("nodes").Select("nodes.*,listeners.*").Joins("left join listeners on nodes.id=listeners.node_id").
 	//	First(envoyNode, "envoy_node_id=?", "test").Error
-	err := c.db.Debug().Table("nodes").Preload("Listeners.Routes.Headers").Preload("Listeners.Routes.Clusters.Endpoints").First(envoyNode, "envoy_node_id=?", nodeID).Error
+	err := c.db.Debug().Table("nodes").Preload("Listeners.RouteConfig.VirtualHosts.Routes.Headers").Preload("Listeners.RouteConfig.VirtualHosts.Routes.Clusters.Endpoints").First(envoyNode, "envoy_node_id=?", nodeID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +193,7 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 			virtualHosts = append(virtualHosts, resource.VirtualHost{
 				Name:    virtualHostItem.Name,
 				Routes:  storageRoutes,
-				Domains: virtualHostItem.Domain,
+				Domains: strings.Split(virtualHostItem.Domains, ","),
 			})
 		}
 		var storageRouteConfig = &resource.RouteConfig{
@@ -237,41 +238,41 @@ type Node struct {
 
 type Listener struct {
 	gorm.Model
-	Name        string      `yaml:"name" json:"name"`
-	Address     string      `yaml:"address" json:"address"`
-	Port        uint32      `yaml:"port" json:"port"`
-	RouteConfig RouteConfig `yaml:"routeConfig" json:"routeConfig" gorm:"foreignKey:ListenerID"`
-	NodeID      int         `yaml:"nodeID" json:"nodeID" gorm:"index:idx_node_id;"`
+	Name        string       `yaml:"name" json:"name"`
+	Address     string       `yaml:"address" json:"address"`
+	Port        uint32       `yaml:"port" json:"port"`
+	RouteConfig *RouteConfig `yaml:"routeConfig" json:"routeConfig" gorm:"foreignKey:ListenerID"`
+	NodeID      int          `yaml:"nodeID" json:"nodeID" gorm:"index:idx_node_id;"`
 }
 
 type RouteConfig struct {
 	gorm.Model
 	Name         string        `yaml:"name" json:"name"`
-	ListenerID   int           `yaml:"listenerID" json:"listenerID"`
+	ListenerID   uint          `yaml:"listenerID" json:"listenerID" gorm:"index:idx_listener_id;"`
 	VirtualHosts []VirtualHost `yaml:"virtualHost" json:"virtualHost" gorm:"foreignKey:RouteConfigID;"`
 }
 
 type VirtualHost struct {
 	gorm.Model
-	Name          string   `yaml:"name" json:"name"`
-	Domain        []string `yaml:"domain" json:"domain"`
-	RouteConfigID int      `yaml:"routeConfigID" json:"routeConfigID"`
-	Routes        []Route  `yaml:"routes" json:"routes" gorm:"foreignKey:ListenerID;"`
+	Name          string  `yaml:"name" json:"name"`
+	Domains       string  `yaml:"domain" json:"domain"`
+	RouteConfigID int     `yaml:"routeConfigID" json:"routeConfigID"  gorm:"index:idx_v_h_route_config_id;"`
+	Routes        []Route `yaml:"routes" json:"routes" gorm:"foreignKey:VirtualHostID;"`
 }
 
 type Route struct {
 	gorm.Model
-	Name       string        `yaml:"name"`
-	PathType   int           `yaml:"pathType"`
-	PathValue  string        `yaml:"pathValue"`
-	Headers    []HeaderRoute `json:"headers" gorm:"foreignKey:RouteID"`
-	Clusters   []Cluster     `json:"clusters" gorm:"many2many:route_clusters;"`
-	ListenerID int           `json:"listenerID"  gorm:"index:idx_listener_id;"`
+	Name          string        `yaml:"name"`
+	PathType      int           `yaml:"pathType"`
+	PathValue     string        `yaml:"pathValue"`
+	Headers       []HeaderRoute `json:"headers" gorm:"foreignKey:RouteID"`
+	Clusters      []Cluster     `json:"clusters" gorm:"many2many:route_clusters;"`
+	VirtualHostID int           `json:"virtualHostID"  gorm:"index:idx_visualhost_id;"`
 }
 
 type HeaderRoute struct {
 	gorm.Model
 	HeaderName  string `json:"headerName"`
 	HeaderValue string `json:"headerValue"`
-	RouteID     int
+	RouteID     int    `json:"routeID" gorm:"index:idx_h_d_route_id;"`
 }
