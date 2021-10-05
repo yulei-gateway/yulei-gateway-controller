@@ -14,4 +14,5 @@ import "github.com/yulei-gateway/yulei-gateway-controller/pkg/resource"
 type Storage interface {
 	GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, error)
 	GetChangeMsgChan() chan string
+	GetNodeIDs() ([]string, error)
 }

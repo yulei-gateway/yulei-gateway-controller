@@ -5,6 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/golang/protobuf/ptypes"
+
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -12,7 +15,7 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	_ "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	envoy_type_matcher_v3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -166,6 +169,53 @@ func (e *EnvoyConfig) BuildCluster(clusterName string) (*cluster.Cluster, error)
 	return nil, nil
 }
 
+func (e *EnvoyConfig) BuildListeners() ([]*listener.Listener, error) {
+	var result []*listener.Listener
+	for _, listenerItem := range e.Listeners {
+		// HTTP filter configuration
+		manager := &hcm.HttpConnectionManager{
+			CodecType:  hcm.HttpConnectionManager_AUTO,
+			StatPrefix: "http",
+			RouteSpecifier: &hcm.HttpConnectionManager_Rds{
+				Rds: &hcm.Rds{
+					ConfigSource:    makeConfigSource(),
+					RouteConfigName: "listener_0",
+				},
+			},
+			HttpFilters: []*hcm.HttpFilter{{
+				Name: wellknown.Router,
+			}},
+		}
+		pbst, err := ptypes.MarshalAny(manager)
+		if err != nil {
+			panic(err)
+		}
+		resultItem := &listener.Listener{
+			Name: listenerItem.Name,
+			Address: &core.Address{
+				Address: &core.Address_SocketAddress{
+					SocketAddress: &core.SocketAddress{
+						Protocol: core.SocketAddress_TCP,
+						Address:  listenerItem.Address,
+						PortSpecifier: &core.SocketAddress_PortValue{
+							PortValue: listenerItem.Port,
+						},
+					},
+				},
+			},
+			FilterChains: []*listener.FilterChain{{
+				Filters: []*listener.Filter{{
+					Name: wellknown.HTTPConnectionManager,
+					ConfigType: &listener.Filter_TypedConfig{
+						TypedConfig: pbst,
+					},
+				}},
+			}},
+		}
+		result = append(result, resultItem)
+	}
+	return result, nil
+}
 func (e *EnvoyConfig) BuildListener() (*listener.Listener, error) {
 	return nil, nil
 }

@@ -133,6 +133,20 @@ func (c *DatabaseStorage) migrate() error {
 	return c.db.AutoMigrate(&Node{}, &Listener{}, &Cluster{}, &RouteConfig{}, &VirtualHost{}, &HeaderRoute{}, &Route{}, &Endpoint{})
 }
 
+func (c *DatabaseStorage) GetNodeIDs() ([]string, error) {
+	var nodes = []Node{}
+	err := c.db.Debug().Table("nodes").Find(&nodes).Error
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+
+	for _, item := range nodes {
+		result = append(result, item.EnvoyNodeID)
+	}
+	return result, nil
+}
+
 //GetEnvoyConfig get a envoy node config
 func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, error) {
 	var envoyNode = &Node{}
