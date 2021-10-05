@@ -8,6 +8,8 @@ import (
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/resource"
 )
 
+// drop table node_clusters,node_listener,cluster_endpoints,header_routes,route_clusters,endpoints,routes,virtual_hosts,route_configs,listeners,clusters,nodes;
+
 func Test_GetEnvoyConfig(t *testing.T) {
 	var mysqlTest = NewDatabaseStorage("mysql", "192.168.15.3", "root", "123456", "yulei_test", 3306)
 
@@ -96,13 +98,16 @@ func Test_database(t *testing.T) {
 				Port:    80,
 			},
 		},
+		Clusters: clusters,
 	}
 	err := mysqlTest.db.Model(&Node{}).Create(node).Error
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
-	err = mysqlTest.db.Model(&Cluster{}).CreateInBatches(clusters, len(clusters)).Error
+	var testClusters []Cluster
+
+	err = mysqlTest.db.Model(&Cluster{}).Find(&testClusters).Error
 	if err != nil {
 		t.Fatal(err)
 		return
