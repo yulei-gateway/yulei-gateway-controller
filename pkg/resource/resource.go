@@ -120,7 +120,7 @@ type Endpoint struct {
 	Port    uint32 `yaml:"port"`
 }
 
-func (e *EnvoyConfig) BuildClusters() ([]*cluster.Cluster, error) {
+func (e *EnvoyConfig) BuildClusters() []*cluster.Cluster {
 	var result []*cluster.Cluster
 	for _, item := range e.Clusters {
 		result = append(result, &cluster.Cluster{
@@ -133,7 +133,7 @@ func (e *EnvoyConfig) BuildClusters() ([]*cluster.Cluster, error) {
 			EdsClusterConfig: makeEDSCluster(),
 		})
 	}
-	return result, nil
+	return result
 }
 
 func makeEDSCluster() *cluster.Cluster_EdsClusterConfig {
@@ -160,17 +160,18 @@ func makeConfigSource() *core.ConfigSource {
 	return source
 }
 
-func (e *EnvoyConfig) BuildCluster(clusterName string) (*cluster.Cluster, error) {
-	clusters, _ := e.BuildClusters()
+func (e *EnvoyConfig) BuildCluster(clusterName string) *cluster.Cluster {
+	clusters := e.BuildClusters()
 	for _, item := range clusters {
 		if item.Name == clusterName {
-			return item, nil
+			return item
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func (e *EnvoyConfig) BuildListeners() ([]*listener.Listener, error) {
+func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
+
 	var result []*listener.Listener
 	for _, listenerItem := range e.Listeners {
 		// HTTP filter configuration
@@ -215,13 +216,10 @@ func (e *EnvoyConfig) BuildListeners() ([]*listener.Listener, error) {
 		}
 		result = append(result, resultItem)
 	}
-	return result, nil
-}
-func (e *EnvoyConfig) BuildListener() (*listener.Listener, error) {
-	return nil, nil
+	return result
 }
 
-func (e *EnvoyConfig) BuildRoutes() ([]*route.RouteConfiguration, error) {
+func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 	var result []*route.RouteConfiguration
 	for _, listenerItem := range e.Listeners {
 		var routeConfig = listenerItem.RouteConfig
@@ -359,36 +357,32 @@ func (e *EnvoyConfig) BuildRoutes() ([]*route.RouteConfiguration, error) {
 		result = append(result, rcf)
 
 	}
-	return result, nil
+	return result
 }
 
-func (e *EnvoyConfig) BuildRoute(listenerName string) (*route.RouteConfiguration, error) {
-	routes, err := e.BuildRoutes()
-	if err != nil {
-		return nil, err
-	}
+func (e *EnvoyConfig) BuildRoute(listenerName string) *route.RouteConfiguration {
+	routes := e.BuildRoutes()
+
 	for _, routeItem := range routes {
 		if routeItem.Name == listenerName {
-			return routeItem, nil
+			return routeItem
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func (e *EnvoyConfig) BuildEndpoint(clusterName string) (*endpoint.ClusterLoadAssignment, error) {
-	clusters, err := e.BuildEndpoints()
-	if err != nil {
-		return nil, err
-	}
+func (e *EnvoyConfig) BuildEndpoint(clusterName string) *endpoint.ClusterLoadAssignment {
+	clusters := e.BuildEndpoints()
+
 	for _, item := range clusters {
 		if item.ClusterName == clusterName {
-			return item, nil
+			return item
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func (e *EnvoyConfig) BuildEndpoints() ([]*endpoint.ClusterLoadAssignment, error) {
+func (e *EnvoyConfig) BuildEndpoints() []*endpoint.ClusterLoadAssignment {
 	for _, clusterItem := range e.Clusters {
 		var endpoints []*endpoint.LbEndpoint
 		for _, endpointItem := range clusterItem.Endpoints {
@@ -419,8 +413,8 @@ func (e *EnvoyConfig) BuildEndpoints() ([]*endpoint.ClusterLoadAssignment, error
 					LbEndpoints: endpoints,
 				}},
 			})
-			return result, nil
+			return result
 		}
 	}
-	return nil, nil
+	return nil
 }

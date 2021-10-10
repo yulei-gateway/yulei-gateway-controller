@@ -4,7 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"net"
+	"strconv"
+	"sync"
+	"sync/atomic"
+
+	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
 
 	locallog "github.com/yulei-gateway/yulei-gateway-controller/pkg/log"
 
@@ -28,13 +34,15 @@ import (
 )
 
 type YuLeiXDSServer struct {
-	grpcServerOptions []grpc.ServerOption
-	xdsV3Server       xdsv3server.Server
-	port              uint32
-	grpcServer        *grpc.Server
-	Storage           storage.Storage
-	log               *locallog.LocalLogger
-	serverCache       cache.SnapshotCache
+	grpcServerOptions    []grpc.ServerOption
+	xdsV3Server          xdsv3server.Server
+	port                 uint32
+	grpcServer           *grpc.Server
+	Storage              storage.Storage
+	log                  *locallog.LocalLogger
+	serverCache          cache.SnapshotCache
+	snapshotVersionCache *sync.Map
+	snapshotVersionLock  sync.Mutex
 }
 
 func (y *YuLeiXDSServer) registerServer() {
@@ -69,7 +77,8 @@ func NewYuLeiXDSServer(grpcServerOptions []grpc.ServerOption,
 	for _, nodeItem := range nodes {
 		yuLeiXDSServer.updateCache(nodeItem)
 	}
-
+	yuLeiXDSServer.snapshotVersionCache = &sync.Map{}
+	yuLeiXDSServer.snapshotVersionLock = sync.Mutex{}
 	log.Infof("the yulei xds server create success ")
 	return yuLeiXDSServer
 }
@@ -94,7 +103,65 @@ func (y *YuLeiXDSServer) updateCache(nodeID string) {
 		return
 	}
 	fmt.Println(envoyConfig)
+	var endpoints = envoyConfig.BuildEndpoints()
+	var endpointResources []types.Resource
+	for _, endpointItem := range endpoints {
+		endpointResources = append(endpointResources, endpointItem)
+	}
+	var clusters = envoyConfig.BuildClusters()
+	var clusterResources []types.Resource
+	for _, clusterItem := range clusters {
+		clusterResources = append(clusterResources, clusterItem)
+	}
+	var routes = envoyConfig.BuildRoutes()
+	var routeResources []types.Resource
+	for _, r := range routes {
+		routeResources = append(routeResources, r)
+	}
+	var listeners = envoyConfig.BuildListeners()
+	var listenerResources []types.Resource
+	for _, l := range listeners {
+		listenerResources = append(listenerResources, l)
+	}
+	snapshot := cache.NewSnapshot(
+		y.newSnapshotVersion(nodeID),
+		endpointResources,
+		clusterResources,
+		routeResources,
+		listenerResources,
+		//envoy/service/runtime/v3/rtds.pb.go
+		[]types.Resource{},
+		//envoy/extensions/transport_sockets/tls/v3/secret.pb.go
+		[]types.Resource{},
+	)
+	if err := snapshot.Consistent(); err != nil {
+		y.log.Errorf("snapshot inconsistency: %+v\n\n\n%+v", snapshot, err)
+		return
+	}
+	y.log.Debugf("will serve snapshot %+v", snapshot)
+	if err := y.serverCache.SetSnapshot(nodeID, snapshot); err != nil {
+		y.log.Errorf("snapshot error %q for %+v", err, snapshot)
+		return
+	}
+}
 
+// newSnapshotVersion increments the current snapshotVersion
+// and returns as a string.
+func (y *YuLeiXDSServer) newSnapshotVersion(nodeID string) string {
+	y.snapshotVersionLock.Lock()
+	defer y.snapshotVersionLock.Unlock()
+	value, ok := y.snapshotVersionCache.Load(nodeID)
+	if ok {
+		if value.(int64) == math.MaxInt64 {
+			value = 0
+		}
+	} else {
+		value = 0
+	}
+	var addItem = value.(int64)
+	atomic.AddInt64(&addItem, 1)
+	y.snapshotVersionCache.Store(nodeID, addItem)
+	return strconv.FormatInt(addItem, 10)
 }
 
 //Start  the gateway envoy xds server start method
