@@ -1,0 +1,7 @@
+databaseConfig:
+  host: 192.168.15.3
+  port: 3306
+  type: mysql
+  userName: root
+  password: 123456
+  name: yulei_test
