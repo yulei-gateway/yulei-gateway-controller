@@ -68,17 +68,18 @@ func NewYuLeiXDSServer(grpcServerOptions []grpc.ServerOption,
 	yuLeiXDSServer.port = port
 	yuLeiXDSServer.grpcServer = grpc.NewServer(grpcServerOptions...)
 	yuLeiXDSServer.log = log
+	yuLeiXDSServer.Storage = dataStorage
 	//TODO the ads flag need test
 	yuLeiXDSServer.serverCache = cache.NewSnapshotCache(false, cache.IDHash{}, yuLeiXDSServer.log)
 	nodes, err := dataStorage.GetNodeIDs()
 	if err != nil {
 		panic(fmt.Sprintf("get nodes from data storage error,msg: %v", err.Error()))
 	}
+	yuLeiXDSServer.snapshotVersionCache = &sync.Map{}
+	yuLeiXDSServer.snapshotVersionLock = sync.Mutex{}
 	for _, nodeItem := range nodes {
 		yuLeiXDSServer.updateCache(nodeItem)
 	}
-	yuLeiXDSServer.snapshotVersionCache = &sync.Map{}
-	yuLeiXDSServer.snapshotVersionLock = sync.Mutex{}
 	log.Infof("the yulei xds server create success ")
 	return yuLeiXDSServer
 }
@@ -153,10 +154,10 @@ func (y *YuLeiXDSServer) newSnapshotVersion(nodeID string) string {
 	value, ok := y.snapshotVersionCache.Load(nodeID)
 	if ok {
 		if value.(int64) == math.MaxInt64 {
-			value = 0
+			value = int64(0)
 		}
 	} else {
-		value = 0
+		value = int64(0)
 	}
 	var addItem = value.(int64)
 	atomic.AddInt64(&addItem, 1)

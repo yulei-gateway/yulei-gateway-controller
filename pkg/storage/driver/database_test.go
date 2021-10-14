@@ -48,17 +48,17 @@ func Test_getNodes(t *testing.T) {
 }
 
 func Test_database(t *testing.T) {
-	var mysqlTest = NewDatabaseStorage("mysql", "192.168.15.3", "root", "123456", "yulei_test", 3306)
+	var mysqlTest = NewDatabaseStorage("mysql", "192.168.49.1", "root", "123456", "yulei_test", 3306)
 	var clusters = []Cluster{
 		{
 			Name: "vm",
 			Endpoints: []Endpoint{
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12345,
 				},
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12346,
 				},
 			},
@@ -66,11 +66,11 @@ func Test_database(t *testing.T) {
 			Name: "vpc",
 			Endpoints: []Endpoint{
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12347,
 				},
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12348,
 				},
 			},
@@ -79,11 +79,11 @@ func Test_database(t *testing.T) {
 			Name: "disk",
 			Endpoints: []Endpoint{
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12349,
 				},
 				{
-					Address: "127.0.0.1",
+					Address: "192.168.0.247",
 					Port:    12350,
 				},
 			},

@@ -18,6 +18,8 @@ package cmd
 import (
 	"context"
 
+	log2 "github.com/yulei-gateway/yulei-gateway-controller/pkg/log"
+
 	"github.com/spf13/cobra"
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver"
@@ -45,7 +47,10 @@ to quickly create a Cobra application.`,
 				serverConfig.DatabaseConfig.Name,
 				serverConfig.DatabaseConfig.Port)
 		}
-		xdsServer := xds.NewYuLeiXDSServer(nil, 15000, storageConfig, nil)
+		// init log config
+		var log = log2.NewLocalLog(serverConfig.LogFilePath, serverConfig.LogLevel)
+		// init xds server
+		xdsServer := xds.NewYuLeiXDSServer(nil, serverConfig.Port, storageConfig, log)
 		xdsServer.Start(context.TODO())
 	},
 }

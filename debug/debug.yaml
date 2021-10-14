@@ -7,3 +7,4 @@ databaseConfig:
   name: yulei_test
 logFilePath: ./debuglog/yulei.log
 logLevel: debug
+port: 18000

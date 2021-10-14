@@ -1,9 +1,12 @@
 package config
 
-type StorageConfig struct {
+type ServerConfig struct {
 	DatabaseConfig *DataBaseConfig `yaml:"databaseConfig" mapstructure:"databaseConfig"`
 	Kubernetes     *Kubernetes     `yaml:"kubernetes" mapstructure:"kubernetes"`
 	FileConfig     *FileConfig     `yaml:"fileConfig" mapstructure:"fileConfig"`
+	LogFilePath    string          `yaml:"logFilePath" mapstructure:"logFilePath"`
+	LogLevel       string          `yaml:"logLevel" mapstructure:"logLevel"`
+	Port           uint32          `yaml:"port" mapstructure:"port"`
 }
 
 type Kubernetes struct {

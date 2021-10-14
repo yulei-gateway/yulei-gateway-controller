@@ -28,7 +28,7 @@ import (
 )
 
 var cfgFile string
-var serverConfig = &config.StorageConfig{}
+var serverConfig = &config.ServerConfig{}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
