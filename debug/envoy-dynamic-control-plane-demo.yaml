@@ -32,7 +32,7 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: my-control-plane
+                address: 192.168.76.35
                 port_value: 18000
 
 admin:

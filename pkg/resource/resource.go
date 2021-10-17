@@ -174,6 +174,7 @@ func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
 
 	var result []*listener.Listener
 	for _, listenerItem := range e.Listeners {
+
 		// HTTP filter configuration
 		manager := &hcm.HttpConnectionManager{
 			CodecType:  hcm.HttpConnectionManager_AUTO,
@@ -181,7 +182,7 @@ func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
 			RouteSpecifier: &hcm.HttpConnectionManager_Rds{
 				Rds: &hcm.Rds{
 					ConfigSource:    makeConfigSource(),
-					RouteConfigName: "listener_0",
+					RouteConfigName: listenerItem.RouteConfig.Name,
 				},
 			},
 			HttpFilters: []*hcm.HttpFilter{{
@@ -383,6 +384,7 @@ func (e *EnvoyConfig) BuildEndpoint(clusterName string) *endpoint.ClusterLoadAss
 }
 
 func (e *EnvoyConfig) BuildEndpoints() []*endpoint.ClusterLoadAssignment {
+	var result []*endpoint.ClusterLoadAssignment
 	for _, clusterItem := range e.Clusters {
 		var endpoints []*endpoint.LbEndpoint
 		for _, endpointItem := range clusterItem.Endpoints {
@@ -406,15 +408,15 @@ func (e *EnvoyConfig) BuildEndpoints() []*endpoint.ClusterLoadAssignment {
 			endpoints = append(endpoints, resourceEndpoint)
 		}
 		if len(endpoints) > 0 {
-			var result []*endpoint.ClusterLoadAssignment
+
 			result = append(result, &endpoint.ClusterLoadAssignment{
 				ClusterName: clusterItem.Name,
 				Endpoints: []*endpoint.LocalityLbEndpoints{{
 					LbEndpoints: endpoints,
 				}},
 			})
-			return result
+			//return result
 		}
 	}
-	return nil
+	return result
 }

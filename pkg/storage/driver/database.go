@@ -219,7 +219,7 @@ func (c *DatabaseStorage) GetEnvoyConfig(nodeID string) (*resource.EnvoyConfig, 
 	}
 	result.Name = nodeID
 	var dbClusters = []Cluster{}
-	err = c.db.Debug().Joins("left join node_clusters on node_clusters.cluster_id= clusters.id").Preload("Nodes", "envoy_node_id=?", nodeID).Find(&dbClusters).Error
+	err = c.db.Debug().Joins("left join node_clusters on node_clusters.cluster_id= clusters.id").Preload("Endpoints").Preload("Nodes", "envoy_node_id=?", nodeID).Find(&dbClusters).Error
 	if err != nil {
 		return nil, err
 	}
