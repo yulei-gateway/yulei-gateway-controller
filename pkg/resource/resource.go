@@ -120,6 +120,9 @@ type Endpoint struct {
 	Port    uint32 `yaml:"port"`
 }
 
+type Filter struct {
+}
+
 func (e *EnvoyConfig) BuildClusters() []*cluster.Cluster {
 	var result []*cluster.Cluster
 	for _, item := range e.Clusters {
