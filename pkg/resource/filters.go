@@ -102,6 +102,7 @@ var (
 			}),
 		},
 	}
+	//TODO ALPN Support
 	//Alpn = &hcm.HttpFilter{
 	//	Name: AlpnFilterName,
 	//	ConfigType: &hcm.HttpFilter_TypedConfig{
@@ -154,6 +155,7 @@ func BuildRouterFilter(ctx *RouterFilterContext) *hcm.HttpFilter {
 	}
 }
 
+// this not support istio extensions filter
 func buildHTTPMxFilter() *hcm.HttpFilter {
 	httpMxConfigProto := &httpwasm.Wasm{
 		Config: &wasm.PluginConfig{
