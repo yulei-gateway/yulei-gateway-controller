@@ -169,6 +169,9 @@ func buildHTTPMxFilter() *hcm.HttpFilter {
 	}
 }
 
+//https://github.com/api7/envoy-apisix
+//https://github.com/envoyproxy/envoy/tree/4b5b3386c6b0d2d284bb1f71639c8e0972659867/examples/lua
+//https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/lua_filter
 // ConstructVMConfig constructs a VM config. If WASM is enabled, the wasm plugin at filename will be used.
 // If not, the builtin (null vm) extension, name, will be used.
 func ConstructVMConfig(filename, name string) *wasm.PluginConfig_VmConfig {
