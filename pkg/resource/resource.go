@@ -7,6 +7,7 @@ import (
 
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
+	_struct "github.com/golang/protobuf/ptypes/struct"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -233,7 +234,20 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 			for _, routeItem := range virtualHost.Routes {
 				var listenerRoute = &route.Route{}
 				var routeMatch = &route.RouteMatch{}
-
+				listenerRoute.Metadata = &core.Metadata{
+					FilterMetadata: map[string]*_struct.Struct{
+						//Layer: &pstruct.Struct{
+						//	Fields: map[string]*pstruct.Value{
+						//		"field-0": {
+						//			Kind: &pstruct.Value_NumberValue{NumberValue: 100},
+						//		},
+						//		"field-1": {
+						//			Kind: &pstruct.Value_StringValue{StringValue: "foobar"},
+						//		},
+						//	},
+						//},
+					},
+				}
 				switch routeItem.PathType {
 				case Prefix:
 					routeMatch.PathSpecifier = &route.RouteMatch_Prefix{
