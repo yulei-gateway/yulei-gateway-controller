@@ -124,8 +124,20 @@ type Endpoint struct {
 }
 
 type Filter struct {
+	Type   string                 `yaml:"type"`
+	Config map[string]interface{} `yaml:"config"`
 }
 
+//MaxRequestsPerConnection
+//CircuitBreakers
+//HealthChecks
+//LbPolicy
+//PerConnectionBufferLimitBytes
+//HttpProtocolOptions
+//DnsRefreshRate
+//DnsLookupFamily
+//DnsResolvers
+//Filters (network filter)
 func (e *EnvoyConfig) BuildClusters() []*cluster.Cluster {
 	var result []*cluster.Cluster
 	for _, item := range e.Clusters {

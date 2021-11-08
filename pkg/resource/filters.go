@@ -1,7 +1,10 @@
 package resource
 
 import (
+	"encoding/json"
 	"time"
+
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 
@@ -23,6 +26,7 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -217,10 +221,11 @@ type HttpFilter interface {
 }
 
 type WASMFilter struct {
-	Name     string
-	FilePath string
-	RootId   string
-	FailOpen bool
+	Name          string
+	FilePath      string
+	RootId        string
+	FailOpen      bool
+	Configuration map[string]interface{}
 }
 
 func (f *WASMFilter) GetName() string {
@@ -231,13 +236,27 @@ func (f *WASMFilter) Build() *hcm.HttpFilter {
 	httpMxConfigProto := &httpwasm.Wasm{
 		Config: &wasm.PluginConfig{
 			Vm: ConstructVMConfig(f.FilePath, "envoy.wasm.metadata_exchange"),
-			//TODO wasm plugin configuration support
-			//Configuration: MessageToAny(&metadata_exchange.MetadataExchange{}),
+			// `google.protobuf.Struct` is serialized as JSON before
+			// passing it to the plugin. `google.protobuf.BytesValue` and
+			// `google.protobuf.StringValue` are passed directly without the wrapper.
+
+			//	Configuration: MessageToAny(&metadata_exchange.MetadataExchange{}),
 			Name:     f.Name,
 			RootId:   f.RootId,
 			FailOpen: f.FailOpen,
 		},
 	}
+	s := &structpb.Struct{}
+	if f.Configuration != nil {
+		b, err := json.Marshal(f.Configuration)
+		if err == nil {
+			err = protojson.Unmarshal(b, s)
+			if err == nil {
+				httpMxConfigProto.Config.Configuration = MessageToAny(s)
+			}
+		}
+	}
+
 	return &hcm.HttpFilter{
 		Name:       f.Name,
 		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: MessageToAny(httpMxConfigProto)},
