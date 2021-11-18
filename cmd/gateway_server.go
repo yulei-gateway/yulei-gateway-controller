@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
-	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver"
+	db "github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver/db"
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/xds"
 )
 
@@ -39,7 +39,7 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var storageConfig storage.Storage
 		if serverConfig.DatabaseConfig != nil {
-			storageConfig = driver.NewDatabaseStorage(
+			storageConfig = db.NewDatabaseStorage(
 				serverConfig.DatabaseConfig.Type,
 				serverConfig.DatabaseConfig.Host,
 				serverConfig.DatabaseConfig.UserName,
