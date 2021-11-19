@@ -54,6 +54,7 @@ type Spec struct {
 	Clusters  []Cluster  `yaml:"clusters"`
 }
 
+// TODO metadata the interface type only support simple type like `int` `string` `boolen` etc. the array slice or map not support
 type Listener struct {
 	Name        string                            `yaml:"name"`
 	Address     string                            `yaml:"address"`
@@ -140,6 +141,7 @@ type Filter struct {
 func (e *EnvoyConfig) BuildClusters() []*cluster.Cluster {
 	var result []*cluster.Cluster
 	for _, item := range e.Clusters {
+		var coreMetadata = buildMetadata(item.Metadata)
 		result = append(result, &cluster.Cluster{
 			Name:                 item.Name,
 			ConnectTimeout:       durationpb.New(5 * time.Second),
@@ -147,6 +149,7 @@ func (e *EnvoyConfig) BuildClusters() []*cluster.Cluster {
 			LbPolicy:             cluster.Cluster_ROUND_ROBIN,
 			//LoadAssignment:       makeEndpoint(clusterName, UpstreamHost),
 			DnsLookupFamily:  cluster.Cluster_V4_ONLY,
+			Metadata:         coreMetadata,
 			EdsClusterConfig: makeEDSCluster(),
 		})
 	}
@@ -210,8 +213,10 @@ func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
 		if err != nil {
 			panic(err)
 		}
+		var coreMetadata = buildMetadata(listenerItem.Metadata)
 		resultItem := &listener.Listener{
-			Name: listenerItem.Name,
+			Name:     listenerItem.Name,
+			Metadata: coreMetadata,
 			Address: &core.Address{
 				Address: &core.Address_SocketAddress{
 					SocketAddress: &core.SocketAddress{
@@ -248,17 +253,8 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 				var listenerRoute = &route.Route{}
 				var routeMatch = &route.RouteMatch{}
 				if routeItem.Metadata != nil {
-					var coreMetadata = &core.Metadata{}
-					coreMetadata.FilterMetadata = map[string]*structpb2.Struct{}
-					for key, value := range routeItem.Metadata {
-						if key != "" && value != nil {
-							metadataStruct, err := structpb.NewStruct(value)
-							if err == nil {
-								coreMetadata.FilterMetadata[key] = metadataStruct
-							}
-						}
-					}
-					if len(coreMetadata.FilterMetadata) > 0 {
+					var coreMetadata = buildMetadata(routeItem.Metadata)
+					if coreMetadata != nil {
 						listenerRoute.Metadata = coreMetadata
 					}
 				}
@@ -361,8 +357,10 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 					totalClustersWeight = totalClustersWeight + weight
 					clusters = append(clusters, localClusterItem)
 				}
+				//listenerRoute.TypedPerFilterConfig=
 				listenerRoute.Action = &route.Route_Route{
 					Route: &route.RouteAction{
+
 						//ClusterSpecifier: &route.RouteAction_Cluster{
 						//	Cluster: routeItem.ClusterName,
 						//},
@@ -450,4 +448,21 @@ func (e *EnvoyConfig) BuildEndpoints() []*endpoint.ClusterLoadAssignment {
 		}
 	}
 	return result
+}
+
+func buildMetadata(metadataMap map[string]map[string]interface{}) *core.Metadata {
+	var coreMetadata = &core.Metadata{}
+	coreMetadata.FilterMetadata = map[string]*structpb2.Struct{}
+	for key, value := range metadataMap {
+		if key != "" && value != nil {
+			metadataStruct, err := structpb.NewStruct(value)
+			if err == nil {
+				coreMetadata.FilterMetadata[key] = metadataStruct
+			}
+		}
+	}
+	if len(coreMetadata.FilterMetadata) > 0 {
+		return coreMetadata
+	}
+	return nil
 }
