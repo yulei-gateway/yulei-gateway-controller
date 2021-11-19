@@ -5,6 +5,10 @@ import (
 	"strings"
 	"time"
 
+	structpb2 "github.com/golang/protobuf/ptypes/struct"
+
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"github.com/golang/protobuf/ptypes"
 
@@ -29,11 +33,6 @@ type EnvoyConfig struct {
 	Spec `yaml:"spec"`
 }
 
-const (
-	wasmHttpFilter    = "envoy.filters.http.wasm"
-	wasmNetworkFilter = "envoy.filters.network.wasm"
-)
-
 type CircuitBreakers struct {
 	Priority           int32
 	MaxConnections     uint32
@@ -56,11 +55,11 @@ type Spec struct {
 }
 
 type Listener struct {
-	Name        string                 `yaml:"name"`
-	Address     string                 `yaml:"address"`
-	Port        uint32                 `yaml:"port"`
-	RouteConfig *RouteConfig           `yaml:"routes"`
-	Metadata    map[string]interface{} `yaml:"metadata"`
+	Name        string                            `yaml:"name"`
+	Address     string                            `yaml:"address"`
+	Port        uint32                            `yaml:"port"`
+	RouteConfig *RouteConfig                      `yaml:"routes"`
+	Metadata    map[string]map[string]interface{} `yaml:"metadata"`
 }
 
 type RoutePathType int
@@ -92,12 +91,12 @@ type VirtualHost struct {
 }
 
 type Route struct {
-	Name      string                 `yaml:"name"`
-	PathType  RoutePathType          `yaml:"pathType"`
-	PathValue string                 `yaml:"pathValue"`
-	Headers   []HeaderRoute          `yaml:"headers"`
-	Clusters  []RouteWeightCluster   `yaml:"clusters"`
-	Metadata  map[string]interface{} `yaml:"metadata"`
+	Name      string                            `yaml:"name"`
+	PathType  RoutePathType                     `yaml:"pathType"`
+	PathValue string                            `yaml:"pathValue"`
+	Headers   []HeaderRoute                     `yaml:"headers"`
+	Clusters  []RouteWeightCluster              `yaml:"clusters"`
+	Metadata  map[string]map[string]interface{} `yaml:"metadata"`
 }
 
 type RouteWeightCluster struct {
@@ -113,9 +112,9 @@ type HeaderRoute struct {
 }
 
 type Cluster struct {
-	Name      string                 `yaml:"name"`
-	Endpoints []Endpoint             `yaml:"endpoints"`
-	Metadata  map[string]interface{} `yaml:"metadata"`
+	Name      string                            `yaml:"name"`
+	Endpoints []Endpoint                        `yaml:"endpoints"`
+	Metadata  map[string]map[string]interface{} `yaml:"metadata"`
 }
 
 type Endpoint struct {
@@ -248,28 +247,21 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 			for _, routeItem := range virtualHost.Routes {
 				var listenerRoute = &route.Route{}
 				var routeMatch = &route.RouteMatch{}
-
-				//m := map[string]interface{}{
-				//	"foo":"bar",
-				//	"baz":123,
-				//}
-				//b, err := json.Marshal(m)
-				//s := &structpb.Struct{}
-				//err = protojson.Unmarshal(b, s)
-				//listenerRoute.Metadata = &core.Metadata{
-				//	FilterMetadata: map[string]*_struct.Struct{
-				//		"test": &_struct.Struct{
-				//			Fields: map[string]*_struct.Value{
-				//				"field-0": {
-				//					Kind: &_struct.Value_NumberValue{NumberValue: 100},
-				//				},
-				//				"field-1": {
-				//					Kind: &_struct.Value_StringValue{StringValue: "foobar"},
-				//				},
-				//			},
-				//		},
-				//	},
-				//}
+				if routeItem.Metadata != nil {
+					var coreMetadata = &core.Metadata{}
+					coreMetadata.FilterMetadata = map[string]*structpb2.Struct{}
+					for key, value := range routeItem.Metadata {
+						if key != "" && value != nil {
+							metadataStruct, err := structpb.NewStruct(value)
+							if err == nil {
+								coreMetadata.FilterMetadata[key] = metadataStruct
+							}
+						}
+					}
+					if len(coreMetadata.FilterMetadata) > 0 {
+						listenerRoute.Metadata = coreMetadata
+					}
+				}
 				switch routeItem.PathType {
 				case Prefix:
 					routeMatch.PathSpecifier = &route.RouteMatch_Prefix{
