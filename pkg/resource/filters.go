@@ -1,12 +1,10 @@
 package resource
 
 import (
-	"encoding/json"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/yulei-gateway/yulei-gateway-controller/pkg/util"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
@@ -24,8 +22,7 @@ import (
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	wasm "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -53,31 +50,31 @@ var (
 	Router = &hcm.HttpFilter{
 		Name: wellknown.Router,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&router.Router{}),
+			TypedConfig: util.MessageToAny(&router.Router{}),
 		},
 	}
 	TLSInspector = &listener.ListenerFilter{
 		Name: wellknown.TlsInspector,
 		ConfigType: &listener.ListenerFilter_TypedConfig{
-			TypedConfig: MessageToAny(&tlsinspector.TlsInspector{}),
+			TypedConfig: util.MessageToAny(&tlsinspector.TlsInspector{}),
 		},
 	}
 	HTTPInspector = &listener.ListenerFilter{
 		Name: wellknown.HttpInspector,
 		ConfigType: &listener.ListenerFilter_TypedConfig{
-			TypedConfig: MessageToAny(&httpinspector.HttpInspector{}),
+			TypedConfig: util.MessageToAny(&httpinspector.HttpInspector{}),
 		},
 	}
 	OriginalDestination = &listener.ListenerFilter{
 		Name: wellknown.OriginalDestination,
 		ConfigType: &listener.ListenerFilter_TypedConfig{
-			TypedConfig: MessageToAny(&originaldst.OriginalDst{}),
+			TypedConfig: util.MessageToAny(&originaldst.OriginalDst{}),
 		},
 	}
 	OriginalSrc = &listener.ListenerFilter{
 		Name: OriginalSrcFilterName,
 		ConfigType: &listener.ListenerFilter_TypedConfig{
-			TypedConfig: MessageToAny(&originalsrc.OriginalSrc{
+			TypedConfig: util.MessageToAny(&originalsrc.OriginalSrc{
 				Mark: 1337,
 			}),
 		},
@@ -128,7 +125,7 @@ func BuildRouterFilter(ctx *RouterFilterContext) *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.Router,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&router.Router{
+			TypedConfig: util.MessageToAny(&router.Router{
 				StartChildSpan: ctx.StartChildSpan,
 			}),
 		},
@@ -137,6 +134,7 @@ func BuildRouterFilter(ctx *RouterFilterContext) *hcm.HttpFilter {
 
 // this not support istio extensions filter
 func buildHTTPMxFilter() *hcm.HttpFilter {
+
 	httpMxConfigProto := &httpwasm.Wasm{
 		Config: &wasm.PluginConfig{
 			Vm: ConstructVMConfig("/etc/istio/extensions/metadata-exchange-filter.compiled.wasm", "envoy.wasm.metadata_exchange"),
@@ -145,7 +143,7 @@ func buildHTTPMxFilter() *hcm.HttpFilter {
 	}
 	return &hcm.HttpFilter{
 		Name:       MxFilterName,
-		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: MessageToAny(httpMxConfigProto)},
+		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: util.MessageToAny(httpMxConfigProto)},
 	}
 }
 
@@ -187,29 +185,6 @@ func ConstructVMConfig(filename, name string) *wasm.PluginConfig_VmConfig {
 	return vmConfig
 }
 
-// MessageToAnyWithError converts from proto message to proto Any
-func MessageToAnyWithError(msg proto.Message) (*anypb.Any, error) {
-	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
-	if err != nil {
-		return nil, err
-	}
-	return &anypb.Any{
-		// nolint: staticcheck
-		TypeUrl: "type.googleapis.com/" + string(msg.ProtoReflect().Descriptor().FullName()),
-		Value:   b,
-	}, nil
-}
-
-// MessageToAny converts from proto message to proto Any
-func MessageToAny(msg proto.Message) *anypb.Any {
-	out, err := MessageToAnyWithError(msg)
-	if err != nil {
-		//log.Error(fmt.Sprintf("error marshaling Any %s: %v", prototext.Format(msg), err))
-		return nil
-	}
-	return out
-}
-
 type ListenerFilter interface {
 	GetName() string
 	Build() *listener.ListenerFilter
@@ -233,6 +208,7 @@ func (f *WASMFilter) GetName() string {
 }
 
 func (f *WASMFilter) Build() *hcm.HttpFilter {
+
 	httpMxConfigProto := &httpwasm.Wasm{
 		Config: &wasm.PluginConfig{
 			Vm: ConstructVMConfig(f.FilePath, "envoy.wasm.metadata_exchange"),
@@ -246,20 +222,16 @@ func (f *WASMFilter) Build() *hcm.HttpFilter {
 			FailOpen: f.FailOpen,
 		},
 	}
-	s := &structpb.Struct{}
 	if f.Configuration != nil {
-		b, err := json.Marshal(f.Configuration)
+		configuration, err := structpb.NewStruct(f.Configuration)
 		if err == nil {
-			err = protojson.Unmarshal(b, s)
-			if err == nil {
-				httpMxConfigProto.Config.Configuration = MessageToAny(s)
-			}
+			httpMxConfigProto.Config.Configuration = util.MessageToAny(configuration)
 		}
 	}
 
 	return &hcm.HttpFilter{
 		Name:       f.Name,
-		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: MessageToAny(httpMxConfigProto)},
+		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: util.MessageToAny(httpMxConfigProto)},
 	}
 }
 
@@ -305,7 +277,7 @@ func (f *LuaFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.Lua,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&lua.Lua{
+			TypedConfig: util.MessageToAny(&lua.Lua{
 				InlineCode:  f.InlineCode,
 				SourceCodes: sourceCodes,
 			}),
@@ -324,7 +296,7 @@ func (f *GrpcStatsFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.HTTPGRPCStats,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&grpcstats.FilterConfig{
+			TypedConfig: util.MessageToAny(&grpcstats.FilterConfig{
 				EmitFilterState: true,
 				PerMethodStatSpecifier: &grpcstats.FilterConfig_StatsForAllMethods{
 					StatsForAllMethods: &wrapperspb.BoolValue{Value: false},
@@ -345,7 +317,7 @@ func (f *GrpcWebFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.GRPCWeb,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&grpcweb.GrpcWeb{}),
+			TypedConfig: util.MessageToAny(&grpcweb.GrpcWeb{}),
 		},
 	}
 }
@@ -403,7 +375,7 @@ func (f *RouterFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.Router,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&router.Router{
+			TypedConfig: util.MessageToAny(&router.Router{
 				DynamicStats:             &wrappers.BoolValue{Value: dynamicStats},
 				StrictCheckHeaders:       f.StrictCheckHeaders,
 				StartChildSpan:           f.StartChildSpan,
@@ -473,7 +445,7 @@ func (f *FaultFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.Fault,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&fault.HTTPFault{}),
+			TypedConfig: util.MessageToAny(&fault.HTTPFault{}),
 		},
 	}
 }
@@ -489,7 +461,7 @@ func (f *CORSFilter) Build() *hcm.HttpFilter {
 	return &hcm.HttpFilter{
 		Name: wellknown.CORS,
 		ConfigType: &hcm.HttpFilter_TypedConfig{
-			TypedConfig: MessageToAny(&cors.Cors{}),
+			TypedConfig: util.MessageToAny(&cors.Cors{}),
 		},
 	}
 }

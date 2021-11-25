@@ -7,6 +7,7 @@ import (
 
 	structpb2 "github.com/golang/protobuf/ptypes/struct"
 
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
@@ -92,12 +93,13 @@ type VirtualHost struct {
 }
 
 type Route struct {
-	Name      string                            `yaml:"name"`
-	PathType  RoutePathType                     `yaml:"pathType"`
-	PathValue string                            `yaml:"pathValue"`
-	Headers   []HeaderRoute                     `yaml:"headers"`
-	Clusters  []RouteWeightCluster              `yaml:"clusters"`
-	Metadata  map[string]map[string]interface{} `yaml:"metadata"`
+	Name          string               `yaml:"name"`
+	PathType      RoutePathType        `yaml:"pathType"`
+	PathValue     string               `yaml:"pathValue"`
+	Headers       []HeaderRoute        `yaml:"headers"`
+	Clusters      []RouteWeightCluster `yaml:"clusters"`
+	RouterFilters []HttpFilter
+	Metadata      map[string]map[string]interface{} `yaml:"metadata"`
 }
 
 type RouteWeightCluster struct {
@@ -252,6 +254,16 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 			for _, routeItem := range virtualHost.Routes {
 				var listenerRoute = &route.Route{}
 				var routeMatch = &route.RouteMatch{}
+				listenerRoute.TypedPerFilterConfig = make(map[string]*anypb.Any)
+				// add filter support
+				//https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/http_filters#config-http-filters
+				for _, filter := range routeItem.RouterFilters {
+					if filter != nil {
+						httpFilter := filter.Build()
+						name := filter.GetName()
+						listenerRoute.TypedPerFilterConfig[name] = httpFilter.GetTypedConfig()
+					}
+				}
 				if routeItem.Metadata != nil {
 					var coreMetadata = buildMetadata(routeItem.Metadata)
 					if coreMetadata != nil {
@@ -357,7 +369,7 @@ func (e *EnvoyConfig) BuildRoutes() []*route.RouteConfiguration {
 					totalClustersWeight = totalClustersWeight + weight
 					clusters = append(clusters, localClusterItem)
 				}
-				//listenerRoute.TypedPerFilterConfig=
+
 				listenerRoute.Action = &route.Route_Route{
 					Route: &route.RouteAction{
 
