@@ -5,14 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yulei-gateway/yulei-gateway-controller/pkg/util"
+
 	structpb2 "github.com/golang/protobuf/ptypes/struct"
 
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
-	"github.com/golang/protobuf/ptypes"
-
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	cluster "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -55,7 +55,8 @@ type Spec struct {
 	Clusters  []Cluster  `yaml:"clusters"`
 }
 
-// TODO metadata the interface type only support simple type like `int` `string` `boolen` etc. the array slice or map not support
+//Listener the xds server listener
+//TODO: metadata the interface type only support simple type like `int` `string` `boolen` etc. the array slice or map not support
 type Listener struct {
 	Name         string                            `yaml:"name"`
 	Address      string                            `yaml:"address"`
@@ -94,12 +95,11 @@ type VirtualHost struct {
 }
 
 type Route struct {
-	Name      string               `yaml:"name"`
-	PathType  RoutePathType        `yaml:"pathType"`
-	PathValue string               `yaml:"pathValue"`
-	Headers   []HeaderRoute        `yaml:"headers"`
-	Clusters  []RouteWeightCluster `yaml:"clusters"`
-	//TODO: need test
+	Name          string                            `yaml:"name"`
+	PathType      RoutePathType                     `yaml:"pathType"`
+	PathValue     string                            `yaml:"pathValue"`
+	Headers       []HeaderRoute                     `yaml:"headers"`
+	Clusters      []RouteWeightCluster              `yaml:"clusters"`
 	RouterFilters []HttpFilter                      `yaml:"routerFilter"`
 	Metadata      map[string]map[string]interface{} `yaml:"metadata"`
 }
@@ -218,7 +218,7 @@ func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
 				manager.HttpFilters = append(manager.HttpFilters, item.Build())
 			}
 		}
-		pbst, err := ptypes.MarshalAny(manager)
+		pbst, err := util.MessageToAnyWithError(manager)
 		if err != nil {
 			panic(err)
 		}

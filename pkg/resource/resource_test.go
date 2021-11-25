@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -12,6 +14,24 @@ type UserInfo struct {
 	Password string
 	Key      string
 	Value    int
+}
+
+type TestStruct struct {
+	RouterFilters []HttpFilter `yaml:"routerFilters,omitempty"`
+}
+
+func TestYAMLTestStruct(t *testing.T) {
+	var a1 = &WASMFilter{Name: "test"}
+	var a2 = &LuaFilter{InlineCode: "test"}
+	var filters []HttpFilter
+	filters = append(filters, a1)
+	filters = append(filters, a2)
+	data, err := yaml.Marshal(filters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(data))
+
 }
 
 func TestResourceMataDataBuild(t *testing.T) {
