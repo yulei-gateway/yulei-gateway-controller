@@ -99,7 +99,7 @@ type Route struct {
 	PathValue string               `yaml:"pathValue"`
 	Headers   []HeaderRoute        `yaml:"headers"`
 	Clusters  []RouteWeightCluster `yaml:"clusters"`
-	//TODO need test
+	//TODO: need test
 	RouterFilters []HttpFilter                      `yaml:"routerFilter"`
 	Metadata      map[string]map[string]interface{} `yaml:"metadata"`
 }
