@@ -57,11 +57,12 @@ type Spec struct {
 
 // TODO metadata the interface type only support simple type like `int` `string` `boolen` etc. the array slice or map not support
 type Listener struct {
-	Name        string                            `yaml:"name"`
-	Address     string                            `yaml:"address"`
-	Port        uint32                            `yaml:"port"`
-	RouteConfig *RouteConfig                      `yaml:"routes"`
-	Metadata    map[string]map[string]interface{} `yaml:"metadata"`
+	Name         string                            `yaml:"name"`
+	Address      string                            `yaml:"address"`
+	Port         uint32                            `yaml:"port"`
+	RouteConfig  *RouteConfig                      `yaml:"routes"`
+	Metadata     map[string]map[string]interface{} `yaml:"metadata"`
+	RouterFilter []HttpFilter                      `yaml:"routerFilter"`
 }
 
 type RoutePathType int
@@ -93,12 +94,13 @@ type VirtualHost struct {
 }
 
 type Route struct {
-	Name          string               `yaml:"name"`
-	PathType      RoutePathType        `yaml:"pathType"`
-	PathValue     string               `yaml:"pathValue"`
-	Headers       []HeaderRoute        `yaml:"headers"`
-	Clusters      []RouteWeightCluster `yaml:"clusters"`
-	RouterFilters []HttpFilter
+	Name      string               `yaml:"name"`
+	PathType  RoutePathType        `yaml:"pathType"`
+	PathValue string               `yaml:"pathValue"`
+	Headers   []HeaderRoute        `yaml:"headers"`
+	Clusters  []RouteWeightCluster `yaml:"clusters"`
+	//TODO need test
+	RouterFilters []HttpFilter                      `yaml:"routerFilter"`
 	Metadata      map[string]map[string]interface{} `yaml:"metadata"`
 }
 
@@ -210,6 +212,11 @@ func (e *EnvoyConfig) BuildListeners() []*listener.Listener {
 			HttpFilters: []*hcm.HttpFilter{{
 				Name: wellknown.Router,
 			}},
+		}
+		for _, item := range listenerItem.RouterFilter {
+			if item != nil && item.GetName() != wellknown.Router {
+				manager.HttpFilters = append(manager.HttpFilters, item.Build())
+			}
 		}
 		pbst, err := ptypes.MarshalAny(manager)
 		if err != nil {
