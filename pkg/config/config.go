@@ -7,6 +7,7 @@ type ServerConfig struct {
 	LogFilePath    string          `yaml:"logFilePath" mapstructure:"logFilePath"`
 	LogLevel       string          `yaml:"logLevel" mapstructure:"logLevel"`
 	Port           uint32          `yaml:"port" mapstructure:"port"`
+	BindIP         string          `yaml:"bindIP" mapstructure:"bindIP"`
 }
 
 type Kubernetes struct {

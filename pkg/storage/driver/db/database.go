@@ -1,4 +1,4 @@
-package driver
+package db
 
 import (
 	"fmt"
@@ -253,11 +253,12 @@ func (c *DatabaseStorage) GetChangeMsgChan() chan string {
 // Cluster the end point clusters
 type Cluster struct {
 	gorm.Model
-	Name      string     `json:"name" gorm:"index"`
-	Weight    uint32     `json:"weight" yaml:"weight"`
-	Endpoints []Endpoint `json:"endpoints"  gorm:"many2many:cluster_endpoints;"`
-	Routes    []Route    `json:"routes"  gorm:"many2many:route_clusters;"`
-	Nodes     []Node     `json:"nodeID" gorm:"many2many:node_clusters;"`
+	Name        string     `json:"name" gorm:"index"`
+	Weight      uint32     `json:"weight" yaml:"weight"`
+	Endpoints   []Endpoint `json:"endpoints" yaml:"endpoints" gorm:"many2many:cluster_endpoints;"`
+	Routes      []Route    `json:"routes" yaml:"routes" gorm:"many2many:route_clusters;"`
+	Nodes       []Node     `json:"nodes" yaml:"nodes" gorm:"many2many:node_clusters;"`
+	Description string     `json:"description" yaml:"description"`
 }
 
 type Endpoint struct {
@@ -267,11 +268,19 @@ type Endpoint struct {
 	Clusters []Cluster `json:"clusters" gorm:"many2many:cluster_endpoints;"`
 }
 
+type NodeGroup struct {
+	gorm.Model
+	NodeGroupID string `yaml:"nodeGroupID" json:"nodeGroupID"`
+	Description string `yaml:"description" json:"description"`
+	Nodes       []Node `yaml:"nodes" json:"nodes" gorm:"foreignKey:RouteID"`
+}
+
 type Node struct {
 	gorm.Model
 	EnvoyNodeID string     `yaml:"nodeID" json:"nodeID"`
 	Listeners   []Listener `yaml:"listeners" json:"listeners" gorm:"many2many:node_listener;"`
 	Clusters    []Cluster  `yaml:"clusters" json:"clusters" gorm:"many2many:node_clusters;"`
+	NodeGroupID int        `yaml:"nodeGroupID" json:"nodeGroupID" gorm:"index:idx_node_group_id;"`
 }
 
 type Listener struct {
