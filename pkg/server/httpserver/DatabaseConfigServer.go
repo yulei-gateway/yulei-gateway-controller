@@ -13,6 +13,8 @@ import (
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver/db"
 )
 
+//HttpConfigServer the http server
+//TODO: need rebuild this to use the storage interface and the config model need as a package
 type HttpConfigServer struct {
 	DatabaseName    string
 	DatabaseType    string
