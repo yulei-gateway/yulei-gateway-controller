@@ -70,7 +70,35 @@
 |address|string|服务地址|
 |port|int32|端口号|
 
-## 路由配置 TODO
+## 路由配置   
+|key| type|desc|
+|---|---|---| 
+|name |string|路由名称|
+|listener_name|string|绑定监听器|
 
 
+## 路由过滤器绑定
+
+|key| type|desc|
+|---|---|---| 
+|id |uuid|绑定id|
+|router_name|string|路由名称|
+|filter_name|string|envoy 默认的filter 名称|
+|filter_config|json|通过template转换成的配置|
+ 
+
+ ## 路由cluster绑定
+
+|key| type|desc|
+|---|---|---| 
+|id |uuid|绑定id|
+|router_name|string|路由名称|
+|cluster_name|string|envoy 默认的filter 名称|
+|path|string|转发路径|
+|path_type|string|转发路径类型 `Prefix` `Path` `Regex`|
+|header|json|header匹配转发，key value and type 类型的,type 值`Contains` `SuffixMatch` `PrefixMatch` `PresentMatch` `RangeMatch` `SafeRegexMatch` `ExactMatch` default `ExactMatch`|
+
+
+ 
+ 
  
