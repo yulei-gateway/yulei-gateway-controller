@@ -10,38 +10,34 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/yulei-gateway/yulei-gateway-controller/pkg/config"
 	locallog "github.com/yulei-gateway/yulei-gateway-controller/pkg/log"
-	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver/db"
+	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
 )
 
 //HttpConfigServer the http server
 //TODO: need rebuild this to use the storage interface and the config model need as a package
 type HttpConfigServer struct {
-	DatabaseName    string
-	DatabaseType    string
-	DatabaseHost    string
-	DatabasePort    int
-	Username        string
-	Password        string
-	OtherDSN        string
-	httpServer      *http.Server
-	router          *mux.Router
-	databaseStorage *db.DatabaseStorage
-	log             *locallog.LocalLogger
+	DatabaseName string
+	DatabaseType string
+	DatabaseHost string
+	DatabasePort int
+	Username     string
+	Password     string
+	OtherDSN     string
+	httpServer   *http.Server
+	router       *mux.Router
+	dataStorage  storage.ControllerStorage
+	log          *locallog.LocalLogger
 }
 
-func NewHttpConfigServer(conf *config.ServerConfig, log *locallog.LocalLogger) (*HttpConfigServer, error) {
+func NewHttpConfigServer(conf *config.ServerConfig, log *locallog.LocalLogger, dataStorage storage.ControllerStorage) (*HttpConfigServer, error) {
 	if conf == nil || conf.DatabaseConfig == nil {
 		return nil, fmt.Errorf("database config can not be nil")
 	}
+	if dataStorage == nil {
+		panic("the data storage can not be nil")
+	}
 	serviceConfig := &HttpConfigServer{}
-	storageConfig := db.NewDatabaseStorage(
-		conf.DatabaseConfig.Type,
-		conf.DatabaseConfig.Host,
-		conf.DatabaseConfig.UserName,
-		conf.DatabaseConfig.Password,
-		conf.DatabaseConfig.Name,
-		conf.DatabaseConfig.Port)
-	serviceConfig.databaseStorage = storageConfig
+	serviceConfig.dataStorage = dataStorage
 	var address = conf.BindIP
 	if address == "" {
 		address = "0.0.0.0"
