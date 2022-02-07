@@ -132,6 +132,12 @@ type Filter struct {
 	Config map[string]interface{} `yaml:"config"`
 }
 
+type NodeGroup struct {
+	NodeGroupName string
+	NodeIds       []string
+	Desc          string
+}
+
 //MaxRequestsPerConnection
 //CircuitBreakers
 //HealthChecks
