@@ -16,14 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
-
-	log2 "github.com/yulei-gateway/yulei-gateway-controller/pkg/log"
-
 	"github.com/spf13/cobra"
-	"github.com/yulei-gateway/yulei-gateway-controller/pkg/storage"
-	db "github.com/yulei-gateway/yulei-gateway-controller/pkg/storage/driver/db"
-	"github.com/yulei-gateway/yulei-gateway-controller/pkg/xds"
 )
 
 // gatewayServerCmd represents the gatewayServer command
@@ -37,21 +30,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		var storageConfig storage.Storage
-		if serverConfig.DatabaseConfig != nil {
-			storageConfig = db.NewDatabaseStorage(
-				serverConfig.DatabaseConfig.Type,
-				serverConfig.DatabaseConfig.Host,
-				serverConfig.DatabaseConfig.UserName,
-				serverConfig.DatabaseConfig.Password,
-				serverConfig.DatabaseConfig.Name,
-				serverConfig.DatabaseConfig.Port)
-		}
-		// init log config
-		var log = log2.NewLocalLog(serverConfig.LogFilePath, serverConfig.LogLevel)
-		// init xds server
-		xdsServer := xds.NewYuLeiXDSServer(nil, serverConfig.Port, storageConfig, log)
-		xdsServer.Start(context.TODO())
+
 	},
 }
 
